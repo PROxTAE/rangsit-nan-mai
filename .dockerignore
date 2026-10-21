@@ -1,0 +1,16 @@
+.git
+.claude
+**/__pycache__
+*.py[cod]
+.venv
+venv
+
+# ข้อมูลที่เกิดตอนรัน: mount จาก host แทน (docker-compose.yml)
+data/raw
+results
+
+# เอกสาร/สไลด์ ไม่ต้องใช้ตอนรัน
+resource
+docs
+*.pdf
+*.bat

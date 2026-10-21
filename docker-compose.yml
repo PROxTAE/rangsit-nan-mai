@@ -1,0 +1,49 @@
+# Deploy บน VPS:  docker compose up -d --build
+#   worker  = run_monitor.py ดึงภาพจากกล้องทุก 5 นาที + วิเคราะห์ + บันทึกลง SQLite
+#   web     = แดชบอร์ด (FastAPI) ไม่เปิด port ออก host ให้ reverse proxy (Caddy) เข้าทาง network ingress
+#   cleanup = ลบไฟล์ภาพเก่าทุกวัน 03:00 ตาม RAW_KEEP_DAYS / MEDIA_KEEP_DAYS ใน config.py
+# ข้อมูลอยู่ที่ ./data/raw และ ./results บน host อัปเดตโค้ด/rebuild แล้วข้อมูลยังอยู่
+name: rangsitnanmai
+
+x-app: &app
+  build: .
+  image: rangsitnanmai-app
+  environment:
+    TZ: Asia/Bangkok
+  volumes:
+    - ./data/raw:/app/data/raw
+    - ./results:/app/results
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  worker:
+    <<: *app
+    command: ["python", "run_monitor.py"]
+    stop_grace_period: 30s
+
+  web:
+    <<: *app
+    command: ["python", "-m", "uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8000",
+              "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    networks:
+      default:
+      ingress:
+        aliases: [rangsitnanmai-web]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  cleanup:
+    <<: *app
+    command: ["sh", "ops/cleanup-loop.sh"]
+
+networks:
+  ingress:
+    name: rangsitnanmai-ingress
