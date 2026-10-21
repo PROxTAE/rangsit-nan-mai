@@ -186,6 +186,9 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(classify(.4501,None),'congested')
         self.assertEqual(classify(.5,.8),'moderate')
         self.assertEqual(classify(.3,.2),'congested')
+        # กลางคืน motion ไม่น่าเชื่อถือ ตัดสินจาก occupancy อย่างเดียว
+        self.assertEqual(classify(.62,.66,night=True),'congested')
+        self.assertEqual(classify(.3,.2,night=True),'moderate')
 
     def test_concurrent_readers_and_writer(self):
         self.seed();failures=[]

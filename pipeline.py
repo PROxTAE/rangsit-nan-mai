@@ -42,8 +42,14 @@ def zone_occupancy(binary, lane_mask, zones, glare=None):
     return weighted, per_zone
 
 
-def classify(occ, motion=None):
-    """แบ่งระดับจาก occupancy แล้วปรับด้วยการเคลื่อนไหว (ถ้ามีภาพคู่)"""
+def classify(occ, motion=None, night=False):
+    """แบ่งระดับจาก occupancy แล้วปรับด้วยการเคลื่อนไหว (ถ้ามีภาพคู่)
+
+    กลางคืนไม่ใช้ motion: ตัวรถมืดกลืนกับถนน เห็นแต่ไฟหน้า/ไฟเบรก/แสงสะท้อน ซึ่งเปลี่ยนทุกภาพแม้รถจอดนิ่ง
+    วัดได้ ~0.5–0.67 ทั้งตอนรถติดและถนนโล่ง (เฉลี่ย 0.58 vs 0.64) จึงบอกไม่ได้ว่ารถไหลหรือจอด
+    """
+    if night:
+        motion = None
     if occ < config.OCC_MODERATE:
         return "clear"
     if occ > config.OCC_CONGESTED:
@@ -157,7 +163,7 @@ class Pipeline:
                 "is_night": int(night),
                 "threshold": round(dbg["threshold"], 1),
                 "cam_dx": dx, "cam_dy": dy, "cam_score": round(score, 3),
-                "level": classify(occ, motion),
+                "level": classify(occ, motion, night),
             })
         vis = {"img": img, "binary": counted, "kmeans": kbin, "diff": dbg["combined"], "masks": self.masks,
                "glare": glare}
