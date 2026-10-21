@@ -14,13 +14,16 @@ ROOT = Path(__file__).resolve().parent
 
 # ---------- แหล่งข้อมูล ----------
 SNAPSHOT_URL = "https://ipcamlive.com/player/snapshot.php?alias=6695edb811079"
-INTERVAL_SEC = 300          # ดึงภาพทุก 5 นาที
-# กล้องอัปเดต snapshot นาทีละครั้ง ภาพที่สอง (วัดการเคลื่อนไหว) จึงต้องรอภาพใหม่ ~60 วินาที
-PAIR_POLL_SEC = 5           # เช็กทุก 5 วินาทีว่าภาพเปลี่ยนหรือยัง
-PAIR_TIMEOUT_SEC = 100      # รอนานสุดเท่านี้ ถ้าไม่เปลี่ยนก็ข้าม
+# กล้องอัปเดต snapshot ทุก ~60 วินาที (วัดจาก Last-Modified) ดึงถี่กว่านี้ได้ภาพเดิมซ้ำ
+INTERVAL_SEC = 60           # ดึงภาพทุก 1 นาที = เร็วสุดที่กล้องให้ได้
+PAIR_POLL_SEC = 5           # ได้ภาพซ้ำ (กล้องยังไม่อัปเดต) -> ลองใหม่ทุก 5 วินาทีแทนการรอครบรอบ
+# ภาพคู่ _b: ใช้ในโหมด 5 นาทีเดิมเพื่อวัดการเคลื่อนไหว ตอนนี้เฟรมติดกันห่าง ~60 วินาทีอยู่แล้ว จึงใช้เฟรมก่อนหน้าแทน
+CAPTURE_PAIR = False
+PAIR_TIMEOUT_SEC = 100      # (เมื่อเปิด CAPTURE_PAIR) รอภาพคู่นานสุดเท่านี้ ถ้าไม่เปลี่ยนก็ข้าม
+MOTION_MAX_GAP_SEC = 90     # เฟรมก่อนหน้าห่างเกินนี้ (กล้องหลุด/ข้ามรอบ) ไม่ใช้วัดการเคลื่อนไหว
 
 # ---------- โฟลเดอร์ ----------
-RAW_DIR = ROOT / "data" / "raw"               # data/raw/YYYY-MM-DD/HHMMSS.jpg (+ HHMMSS_b.jpg)
+RAW_DIR = ROOT / "data" / "raw"               # data/raw/YYYY-MM-DD/HHMMSS.jpg (+ HHMMSS_b.jpg ถ้าเปิด CAPTURE_PAIR)
 BG_DIR = ROOT / "data" / "background"         # ภาพถนนว่างที่จัดแนวแล้ว
 REFERENCE_IMG = ROOT / "image_reference" / "when_clear_road.png"
 MASK_DIR = ROOT / "masks"
@@ -31,7 +34,7 @@ OCCUPANCY_CSV = RESULT_DIR / "occupancy.csv"
 LABELS_CSV = RESULT_DIR / "labels.csv"
 DB_PATH = Path(os.environ.get("TRAFFIC_DB_PATH", str(RESULT_DIR / "traffic.db")))
 THUMB_DIR = RESULT_DIR / "thumbnails"
-WEB_STALE_SEC = 600
+WEB_STALE_SEC = 300         # แดชบอร์ดขึ้นว่าข้อมูลค้าง ถ้าไม่มีภาพใหม่นานเกินนี้ (~5 รอบ)
 
 # ---------- การเก็บไฟล์ (cleanup.py) ----------
 # ตัวเลขใน DB เก็บตลอด ลบเฉพาะไฟล์ภาพ

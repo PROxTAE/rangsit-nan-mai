@@ -13,7 +13,7 @@ import cv2
 import requests
 
 import config
-from collector import collect_once
+from collector import collect_once, next_wait
 from pipeline import Pipeline, draw_overlay
 from web import db
 from web.media import atomic_image, relative
@@ -68,7 +68,7 @@ def process_path(pipe, path):
     pair = path.with_name(path.stem+'_b.jpg')
     settings = {key: getattr(config, key) for key in ['OCC_MODERATE', 'OCC_CONGESTED', 'MOTION_STOPPED',
                 'MOTION_FLOWING', 'BG_DAY_FILE', 'CAMERA_SHIFT_TOL', 'LANDMARK_MIN_SCORE',
-                'RELIGHT_BAND', 'RELIGHT_MAX']}
+                'RELIGHT_BAND', 'RELIGHT_MAX', 'INTERVAL_SEC', 'CAPTURE_PAIR', 'MOTION_MAX_GAP_SEC']}
     roi_file = config.MASK_DIR / 'rois.json'
     settings['roi_sha256'] = hashlib.sha256(roi_file.read_bytes()).hexdigest() if roi_file.exists() else None
     result = db.upsert_frame(rows, dict(raw_path=relative(path), pair_path=relative(pair) if pair.exists() else None,
@@ -85,7 +85,7 @@ def pending_frames():
         done = {r[0] for r in conn.execute('SELECT source_file FROM frames f WHERE '
                 '(SELECT COUNT(*) FROM lane_measurements m WHERE m.frame_id=f.id)=2')}
     return [p for p in sorted(config.RAW_DIR.glob('*/*.jpg')) if not p.stem.endswith('_b')
-            and relative(p) not in done and (p.with_name(p.stem+'_b.jpg').exists()
+            and relative(p) not in done and (not config.CAPTURE_PAIR or p.with_name(p.stem+'_b.jpg').exists()
                 or time.time()-p.stat().st_mtime > config.PAIR_TIMEOUT_SEC+30)]
 
 
@@ -112,7 +112,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--interval', type=int, default=config.INTERVAL_SEC)
     parser.add_argument('--count', type=int, default=0, help='0 means run continuously')
-    parser.add_argument('--no-pair', action='store_true')
+    parser.add_argument('--pair', action=argparse.BooleanOptionalAction, default=config.CAPTURE_PAIR)
     parser.add_argument('--recover-only', action='store_true', help='Analyze existing pending images, then exit')
     parser.add_argument('--watch-only', action='store_true', help='Analyze files from an already-running collector; do not fetch images')
     args = parser.parse_args()
@@ -150,20 +150,22 @@ def main():
                         # A frame interrupted during pair capture may only become ready
                         # after startup; retry it on subsequent cycles as well.
                         recover_pending(pipe)
-                        result = collect_once(session, last_hash, args.no_pair, db.worker_state)
+                        result = collect_once(session, last_hash, not args.pair, db.worker_state)
                         last_hash = result['last_hash']
                         if result['path']:
                             process_path(pipe, result['path'])
                         else:
                             db.worker_state(result['status'], error='Cannot fetch camera snapshot' if result['status'] == 'fetch_error' else None)
-                            log.info('Collection: %s', result['status'])
+                            if result['status'] != 'duplicate':  # ภาพซ้ำเกิดแทบทุกรอบ ไม่ต้อง log
+                                log.info('Collection: %s', result['status'])
                     except Exception as exc:
                         log.exception('Collection/analysis failed')
                         db.worker_state('error', error=str(exc))
+                        result = {'status': 'error'}
                     cycles += 1
                     if args.count and cycles >= args.count:
                         break
-                    time.sleep(max(0, args.interval-(time.monotonic()-started)))
+                    time.sleep(next_wait(result['status'], args.interval, time.monotonic()-started))
         finally:
             stop.set()
             thread.join(timeout=2)

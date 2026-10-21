@@ -1,13 +1,14 @@
 """① Collector: ดึง snapshot จากกล้อง CCTV ตามรอบเวลา (polling)
 
-ทุกรอบเก็บ 2 ภาพ: ภาพหลัก และภาพถัดไปที่กล้องอัปเดต (กล้องนี้อัปเดต snapshot นาทีละครั้ง)
+กล้องนี้อัปเดต snapshot ทุก ~60 วินาที จึงเก็บนาทีละภาพ
     data/raw/2026-10-21/113830.jpg     ภาพหลัก
-    data/raw/2026-10-21/113830_b.jpg   ภาพถัดไป ~60 วินาทีต่อมา (ใช้วัดว่ารถขยับหรือจอดนิ่ง)
+    data/raw/2026-10-21/113830_b.jpg   (เฉพาะ --pair) ภาพถัดไป ~60 วินาทีต่อมา ใช้วัดว่ารถขยับหรือจอดนิ่ง
+การเคลื่อนไหววัดจากเฟรมก่อนหน้าแทนภาพคู่ (pipeline.motion_reference)
 
 ใช้งาน:
-    python collector.py                    # วนทุก 5 นาทีไปเรื่อย ๆ (Ctrl+C เพื่อหยุด)
-    python collector.py --interval 60 --count 10
-    python collector.py --no-pair          # ไม่ถ่ายภาพที่สอง
+    python collector.py                    # วนทุก 60 วินาทีไปเรื่อย ๆ (Ctrl+C เพื่อหยุด)
+    python collector.py --interval 300 --pair   # โหมด 5 นาทีเดิม + ภาพคู่
+    python collector.py --count 10
 """
 import argparse
 import datetime
@@ -57,8 +58,9 @@ def save(content, now, suffix=""):
     return path
 
 
-def collect_once(session, last_hash=None, no_pair=False, on_phase=None):
+def collect_once(session, last_hash=None, no_pair=None, on_phase=None):
     """Collect one ready-to-analyze frame. Shared by CLI and the dashboard worker."""
+    no_pair = not config.CAPTURE_PAIR if no_pair is None else no_pair
     notify = on_phase or (lambda phase: None)
     notify('fetching')
     content = fetch_snapshot(session)
@@ -78,11 +80,23 @@ def collect_once(session, last_hash=None, no_pair=False, on_phase=None):
     return {'status': 'ready', 'path': path, 'last_hash': current_hash}
 
 
+def next_wait(status, interval, elapsed):
+    """วินาทีที่ต้องรอก่อนดึงรอบถัดไป
+
+    ภาพซ้ำ = กล้องยังไม่อัปเดต (รอบกล้อง ~60–65 วินาที ไม่ตรงกับรอบเราพอดี) ลองใหม่อีก PAIR_POLL_SEC
+    แทนการรอครบ interval ไม่อย่างนั้นจะได้ภาพห่างกัน ~2 นาทีเป็นระยะ
+    """
+    if status == 'duplicate':
+        return config.PAIR_POLL_SEC
+    return max(0, interval - elapsed)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--interval", type=int, default=config.INTERVAL_SEC, help="วินาทีต่อรอบ")
     ap.add_argument("--count", type=int, default=0, help="จำนวนรอบ (0 = ไม่จำกัด)")
-    ap.add_argument("--no-pair", action="store_true", help="ไม่ถ่ายภาพที่สองสำหรับวัดการเคลื่อนไหว")
+    ap.add_argument("--pair", action=argparse.BooleanOptionalAction, default=config.CAPTURE_PAIR,
+                    help="ถ่ายภาพที่สองหลังกล้องอัปเดต (โหมด 5 นาทีเดิม) --no-pair = ไม่ถ่าย")
     args = ap.parse_args()
 
     session = requests.Session()
@@ -91,13 +105,14 @@ def main():
     print(f"เริ่มเก็บภาพทุก {args.interval} วินาที -> {config.RAW_DIR}")
     while True:
         start = time.time()
-        result = collect_once(session, last_hash, args.no_pair)
+        result = collect_once(session, last_hash, not args.pair)
         last_hash = result['last_hash']
-        print(f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S} {result['status']} {result['path'] or ''}")
+        if result['status'] != 'duplicate':
+            print(f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S} {result['status']} {result['path'] or ''}")
         n += 1
         if args.count and n >= args.count:
             break
-        time.sleep(max(0, args.interval - (time.time() - start)))
+        time.sleep(next_wait(result['status'], args.interval, time.time() - start))
 
 
 if __name__ == "__main__":

@@ -57,6 +57,35 @@ def timestamp_from_path(path):
         return datetime.datetime.fromtimestamp(path.stat().st_mtime)
 
 
+def previous_frame(path):
+    """ภาพหลักก่อนหน้า path (ข้ามภาพคู่ _b) ถ้าเป็นภาพแรกของวันให้ดูโฟลเดอร์เมื่อวาน"""
+    def frames(folder):
+        return sorted(p for p in folder.glob("*.jpg") if not p.stem.endswith("_b"))
+    earlier = [p for p in frames(path.parent) if p.stem < path.stem]
+    if not earlier:
+        yesterday = timestamp_from_path(path) - datetime.timedelta(days=1)
+        earlier = frames(path.parent.with_name(f"{yesterday:%Y-%m-%d}"))
+    return earlier[-1] if earlier else None
+
+
+def motion_reference(path):
+    """ภาพที่ใช้วัดการเคลื่อนไหวคู่กับ path หรือ None
+
+    ข้อมูลโหมด 5 นาทีเดิมมีภาพคู่ _b (ถ่ายหลังภาพหลัก ~60 วินาที) ใช้ภาพนั้น
+    โหมด 60 วินาทีไม่มีภาพคู่ ใช้เฟรมก่อนหน้าซึ่งห่าง ~60 วินาทีเหมือนกัน
+    absdiff ไม่สนลำดับเวลา: รถที่จอดนิ่งจะอยู่ที่เดิมทั้งก่อนและหลัง
+    ถ้าเฟรมก่อนหน้าห่างเกิน MOTION_MAX_GAP_SEC (กล้องหลุด/ข้ามรอบ) รถจะเปลี่ยนไปหมดจนดูเหมือนไหลดี จึงไม่วัด
+    """
+    pair = path.with_name(path.stem + "_b" + path.suffix)
+    if pair.exists():
+        return pair
+    prev = previous_frame(path)
+    if prev is None:
+        return None
+    gap = (timestamp_from_path(path) - timestamp_from_path(prev)).total_seconds()
+    return prev if 0 < gap <= config.MOTION_MAX_GAP_SEC else None
+
+
 class Pipeline:
     def __init__(self):
         self.masks = geometry.lane_masks()
@@ -86,11 +115,11 @@ class Pipeline:
         kbin = (segment.segment_kmeans(img, bg, self.road, static=self.static, lanes=self.masks)
                 if with_kmeans else None)
 
-        # ภาพคู่ห่าง ~60 วินาที (ถ้ามี) สำหรับวัดการเคลื่อนไหว
-        pair = path.with_name(path.stem + "_b" + path.suffix)
+        # ภาพที่ห่าง ~60 วินาที (ภาพคู่ หรือเฟรมก่อนหน้า) สำหรับวัดการเคลื่อนไหว
+        other = motion_reference(path)
         gray_b = None
-        if pair.exists():
-            img_b = load_frame(pair)
+        if other is not None:
+            img_b = load_frame(other)
             if max(abs(dx), abs(dy)) > config.CAMERA_SHIFT_TOL and score >= config.LANDMARK_MIN_SCORE:
                 img_b = geometry.shift_image(img_b, -dx, -dy)
             gray_b = cv2.medianBlur(cv2.cvtColor(img_b, cv2.COLOR_BGR2GRAY), config.MEDIAN_KSIZE)

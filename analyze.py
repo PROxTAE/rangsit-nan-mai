@@ -27,11 +27,11 @@ LEVEL_COLOR = {"clear": "#3fae49", "moderate": "#f5a623", "congested": "#d0312d"
 
 
 def list_frames():
-    """ภาพหลักทั้งหมด ยกเว้นภาพล่าสุดที่ collector ยังรอภาพคู่อยู่ (จะประมวลผลรอบหน้า)"""
+    """ภาพหลักทั้งหมด ยกเว้นภาพล่าสุดที่ collector ยังรอภาพคู่อยู่ (เมื่อเปิด CAPTURE_PAIR จะประมวลผลรอบหน้า)"""
     now = time.time()
     return sorted(p for p in config.RAW_DIR.glob("*/*.jpg")
                   if not p.stem.endswith("_b")
-                  and (p.with_name(p.stem + "_b.jpg").exists()
+                  and (not config.CAPTURE_PAIR or p.with_name(p.stem + "_b.jpg").exists()
                        or now - p.stat().st_mtime > config.PAIR_TIMEOUT_SEC + 30))
 
 
