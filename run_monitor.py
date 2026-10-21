@@ -63,14 +63,15 @@ def process_path(pipe, path):
     version = uuid.uuid4().hex[:12]
     overlay = config.OVERLAY_DIR / path.parent.name / f'{path.stem}-web-{version}.jpg'
     thumb = config.THUMB_DIR / path.parent.name / f'{path.stem}-web-{version}.jpg'
-    atomic_image(overlay, draw_overlay(vis['img'], vis['binary'], rows, vis['masks']), config.OVERLAY_JPEG_QUALITY)
+    atomic_image(overlay, draw_overlay(vis['img'], vis['binary'], rows, vis['masks'], vis['glare']), config.OVERLAY_JPEG_QUALITY)
     image = vis['img']
     atomic_image(thumb, cv2.resize(image, (240, round(image.shape[0]*240/image.shape[1]))))
     pair = path.with_name(path.stem+'_b.jpg')
     settings = {key: getattr(config, key) for key in ['OCC_MODERATE', 'OCC_CONGESTED', 'MOTION_STOPPED',
                 'MOTION_FLOWING', 'BG_DAY_FILE', 'CAMERA_SHIFT_TOL', 'LANDMARK_MIN_SCORE',
                 'RELIGHT_BAND', 'RELIGHT_MAX', 'INTERVAL_SEC', 'CAPTURE_PAIR', 'MOTION_MAX_GAP_SEC',
-                'NIGHT_BRIGHTNESS', 'NIGHT_DARK_FRAC', 'NIGHT_BG_PERCENTILE']}
+                'NIGHT_BRIGHTNESS', 'NIGHT_DARK_FRAC', 'NIGHT_BG_PERCENTILE',
+                'GLARE_LEVEL', 'GLARE_SMOOTH', 'GLARE_GROW', 'GLARE_HALO_SMOOTH', 'GLARE_MIN_VISIBLE']}
     roi_file = config.MASK_DIR / 'rois.json'
     settings['roi_sha256'] = hashlib.sha256(roi_file.read_bytes()).hexdigest() if roi_file.exists() else None
     result = db.upsert_frame(rows, dict(raw_path=relative(path), pair_path=relative(pair) if pair.exists() else None,

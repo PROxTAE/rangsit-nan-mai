@@ -52,7 +52,7 @@ def main():
         (raw_bin, f"7. Otsu threshold (T={rows[0]['threshold']:.0f})", "gray"),
         (vis["binary"], "8. + ขอบเสริม, opening/closing", "gray"),
         (vis["kmeans"], "9. เทียบ: K-means (K=2)", "gray"),
-        (rgb(draw_overlay(img, vis["binary"], rows, vis["masks"])), "10. ผลลัพธ์", None),
+        (rgb(draw_overlay(img, vis["binary"], rows, vis["masks"], vis["glare"])), "10. ผลลัพธ์", None),
         (bev, "11. bird's-eye (ซ้าย | ขวา)", None),
         (bev_bin, "12. mask รถใน bird's-eye", "gray"),
     ]

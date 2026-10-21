@@ -21,17 +21,23 @@ def occupancy(binary, mask):
     return float(np.count_nonzero(binary & mask)) / n if n else 0.0
 
 
-def zone_occupancy(binary, lane_mask, zones):
+def zone_occupancy(binary, lane_mask, zones, glare=None):
     """occupancy แยกช่วง ไกล/กลาง/ใกล้ แล้วเฉลี่ยแบบน้ำหนักเท่ากัน
 
     รถไกลกล้องดูเล็กกว่า ถ้านับพิกเซลรวม ๆ ช่วงใกล้จะครองผล
     การให้แต่ละช่วงมีน้ำหนักเท่ากันจึงชดเชย perspective แบบง่าย
+    glare = พื้นที่แสงไฟจ้า (กลางคืน) คิดเฉพาะส่วนที่มองเห็น ถ้าเหลือน้อยกว่า GLARE_MIN_VISIBLE นับแบบเดิม
     """
     per_zone = {}
     for name, z in zones.items():
         m = lane_mask & z
-        if np.count_nonzero(m):
-            per_zone[name] = occupancy(binary, m)
+        n = np.count_nonzero(m)
+        if not n:
+            continue
+        visible = m if glare is None else cv2.bitwise_and(m, cv2.bitwise_not(glare))
+        if np.count_nonzero(visible) >= config.GLARE_MIN_VISIBLE * n:
+            m = visible
+        per_zone[name] = occupancy(binary, m)
     weighted = float(np.mean(list(per_zone.values()))) if per_zone else 0.0
     return weighted, per_zone
 
@@ -114,6 +120,9 @@ class Pipeline:
         binary, dbg = segment.segment(img, bg, self.road, self.static, return_debug=True, lanes=self.masks)
         kbin = (segment.segment_kmeans(img, bg, self.road, static=self.static, lanes=self.masks)
                 if with_kmeans else None)
+        # กลางคืน: แสงไฟหน้ารถที่ส่องพื้นจนขาวจ้าไม่ใช่ตัวรถ ไม่นับในการเคลื่อนไหวและภาพผลลัพธ์
+        glare = segment.glare_mask(dbg["frame_gray"], dbg["bg_gray"], dbg["threshold"], self.road) if night else None
+        counted = binary if glare is None else cv2.bitwise_and(binary, cv2.bitwise_not(glare))
 
         # ภาพที่ห่าง ~60 วินาที (ภาพคู่ หรือเฟรมก่อนหน้า) สำหรับวัดการเคลื่อนไหว
         other = motion_reference(path)
@@ -127,10 +136,10 @@ class Pipeline:
         ts = timestamp_from_path(path)
         rows = []
         for lane, m in self.masks.items():
-            occ, per_zone = zone_occupancy(binary, m, self.zones)
+            occ, per_zone = zone_occupancy(binary, m, self.zones, glare)
             motion = None
             if gray_b is not None:
-                motion = features.motion_ratio(dbg["frame_gray"], gray_b, binary & m)
+                motion = features.motion_ratio(dbg["frame_gray"], gray_b, counted & m)
             rows.append({
                 "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "file": str(path.relative_to(config.ROOT)).replace("\\", "/"),
@@ -140,7 +149,7 @@ class Pipeline:
                 "occ_far": round(per_zone.get("far", 0), 4),
                 "occ_mid": round(per_zone.get("mid", 0), 4),
                 "occ_near": round(per_zone.get("near", 0), 4),
-                "occupancy_kmeans": round(zone_occupancy(kbin, m, self.zones)[0], 4) if kbin is not None else "",
+                "occupancy_kmeans": round(zone_occupancy(kbin, m, self.zones, glare)[0], 4) if kbin is not None else "",
                 "edge_density": round(features.edge_density(dbg["frame_gray"], m), 4),
                 "motion": "" if motion is None else round(motion, 4),
                 "brightness": round(bright, 1),
@@ -150,15 +159,16 @@ class Pipeline:
                 "cam_dx": dx, "cam_dy": dy, "cam_score": round(score, 3),
                 "level": classify(occ, motion),
             })
-        vis = {"img": img, "binary": binary, "kmeans": kbin, "diff": dbg["combined"], "masks": self.masks}
+        vis = {"img": img, "binary": counted, "kmeans": kbin, "diff": dbg["combined"], "masks": self.masks,
+               "glare": glare}
         return rows, vis
 
 
 LEVEL_BGR = {"clear": (80, 200, 80), "moderate": (0, 190, 255), "congested": (40, 40, 230)}
 
 
-def draw_overlay(img, binary, rows, masks):
-    """ภาพสำหรับนำเสนอ: ระบายสีเลนตามระดับ + ขอบรถ + ตัวเลข occupancy"""
+def draw_overlay(img, binary, rows, masks, glare=None):
+    """ภาพสำหรับนำเสนอ: ระบายสีเลนตามระดับ + ขอบรถ (แดง) + แสงจ้าที่ไม่นับ (ฟ้า) + ตัวเลข occupancy"""
     out = img.copy()
     tint = img.copy()
     for r in rows:
@@ -166,6 +176,9 @@ def draw_overlay(img, binary, rows, masks):
     out = cv2.addWeighted(tint, 0.25, out, 0.75, 0)
     cnts, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(out, cnts, -1, (0, 0, 255), 1)
+    if glare is not None:
+        cnts, _ = cv2.findContours(glare, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(out, cnts, -1, (255, 255, 0), 1)
     for r in rows:
         cv2.drawContours(out, geometry.mask_outline(masks[r["lane"]]), -1, LEVEL_BGR[r["level"]], 2)
     # กล่องสรุปมุมล่างซ้าย

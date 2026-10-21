@@ -36,6 +36,13 @@ def edge_density(gray, roi, thresh=60):
     return float(np.count_nonzero(e & roi)) / n if n else 0.0
 
 
+def local_std(gray, ksize=7):
+    """ส่วนเบี่ยงเบนมาตรฐานในหน้าต่าง ksize x ksize (ความหยาบของพื้นผิว) จาก E[x²] - E[x]² ด้วย box filter"""
+    g = gray.astype(np.float32)
+    mean = cv2.blur(g, (ksize, ksize))
+    return np.sqrt(np.maximum(cv2.blur(g * g, (ksize, ksize)) - mean * mean, 0))
+
+
 def extra_edges(frame_gray, bg_gray, thresh=60):
     """ขอบที่มีในภาพปัจจุบันแต่ไม่มีในพื้นหลัง (ตัดเส้นจราจร/ขอบเกาะกลางทิ้ง)"""
     ef = edge_map(frame_gray, thresh)

@@ -110,6 +110,27 @@ def otsu_threshold(diff, roi):
     return float(np.clip(t, config.MIN_DIFF_THRESHOLD, config.MAX_DIFF_THRESHOLD))
 
 
+def glare_mask(frame_gray, bg_gray, threshold, roi):
+    """พื้นที่ที่ไฟหน้ารถส่องถนนจนขาวจ้า (กลางคืน) = กล้องมองไม่เห็นว่าตรงนั้นเป็นรถหรือถนน
+
+    1) แกนแสง: สว่างมาก (>= GLARE_LEVEL) + สว่างกว่าพื้นหลังเกิน threshold + เรียบ (local std ต่ำ)
+       ตัวรถมีขอบ/ลวดลาย แต่แสงที่ฉายลงพื้นเป็นก้อนขาวเรียบ จุดเล็ก ๆ ถูก opening ลบออก แล้วขยาย GLARE_GROW px
+    2) ขอบแสงที่จางลง: ขยายจากแกนไปยังพิกเซลที่ติดกันซึ่งสว่างกว่าพื้นหลังเกินครึ่ง threshold และยังเรียบ
+       (hysteresis แบบ Canny: เก็บเฉพาะก้อนอ่อนที่ต่อกับก้อนแข็ง ด้วย connected components)
+    """
+    diff = frame_gray.astype(np.int16) - bg_gray.astype(np.int16)
+    texture = features.local_std(frame_gray)
+    core = ((frame_gray >= config.GLARE_LEVEL) & (diff > threshold) & (texture < config.GLARE_SMOOTH))
+    core = cv2.morphologyEx(core.astype(np.uint8) * 255, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    core = cv2.dilate(core, np.ones((config.GLARE_GROW, config.GLARE_GROW), np.uint8))
+    weak = ((diff > threshold / 2) & (texture < config.GLARE_HALO_SMOOTH)).astype(np.uint8) * 255
+    _, labels = cv2.connectedComponents(cv2.bitwise_or(weak, core), connectivity=8)
+    touched = np.unique(labels[core > 0])
+    glare = np.isin(labels, touched[touched > 0]).astype(np.uint8) * 255
+    glare = cv2.dilate(glare, np.ones((3, 3), np.uint8))
+    return cv2.bitwise_and(glare, roi)
+
+
 def segment(img, bg, mask, static=None, return_debug=False, lanes=None):
     """แยกรถด้วย absdiff + Otsu + ขอบเสริม + morphology"""
     static = static if static is not None else geometry.static_mask()
