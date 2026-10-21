@@ -19,9 +19,11 @@ def load_frame(path):
     return img
 
 
-def save_image(path, img):
+def save_image(path, img, quality=None):
+    """quality = คุณภาพ JPEG 0–100 (None = ค่าเริ่มต้นของ OpenCV คือ 95)"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    ok, buf = cv2.imencode(path.suffix, img)
+    params = [cv2.IMWRITE_JPEG_QUALITY, int(quality)] if quality is not None else []
+    ok, buf = cv2.imencode(path.suffix, img, params)
     if not ok:
         raise IOError(f"บันทึกภาพไม่ได้: {path}")
     buf.tofile(str(path))

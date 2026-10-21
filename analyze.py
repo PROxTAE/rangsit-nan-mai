@@ -60,7 +60,8 @@ def process(redo=False, overlays=True):
             w.writerows(rows)
             if overlays:
                 out = config.OVERLAY_DIR / path.parent.name / f"{path.stem}.jpg"
-                save_image(out, draw_overlay(vis["img"], vis["binary"], rows, vis["masks"]))
+                save_image(out, draw_overlay(vis["img"], vis["binary"], rows, vis["masks"]),
+                           config.OVERLAY_JPEG_QUALITY)
             summary = "  ".join(f"{r['lane']}={r['occupancy']*100:4.1f}% {r['level']}" for r in rows)
             print(f"[{i}/{len(frames)}] {rows[0]['timestamp']}  {summary}")
     print(f"บันทึก -> {config.OCCUPANCY_CSV}")

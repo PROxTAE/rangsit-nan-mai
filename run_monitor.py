@@ -62,7 +62,7 @@ def process_path(pipe, path):
     version = uuid.uuid4().hex[:12]
     overlay = config.OVERLAY_DIR / path.parent.name / f'{path.stem}-web-{version}.jpg'
     thumb = config.THUMB_DIR / path.parent.name / f'{path.stem}-web-{version}.jpg'
-    atomic_image(overlay, draw_overlay(vis['img'], vis['binary'], rows, vis['masks']))
+    atomic_image(overlay, draw_overlay(vis['img'], vis['binary'], rows, vis['masks']), config.OVERLAY_JPEG_QUALITY)
     image = vis['img']
     atomic_image(thumb, cv2.resize(image, (240, round(image.shape[0]*240/image.shape[1]))))
     pair = path.with_name(path.stem+'_b.jpg')

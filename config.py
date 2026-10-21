@@ -33,6 +33,13 @@ DB_PATH = Path(os.environ.get("TRAFFIC_DB_PATH", str(RESULT_DIR / "traffic.db"))
 THUMB_DIR = RESULT_DIR / "thumbnails"
 WEB_STALE_SEC = 600
 
+# ---------- การเก็บไฟล์ (cleanup.py) ----------
+# ตัวเลขใน DB เก็บตลอด ลบเฉพาะไฟล์ภาพ
+RAW_KEEP_DAYS = 30          # ภาพดิบ data/raw ใช้ประมวลผลใหม่/สร้าง bg median
+MEDIA_KEEP_DAYS = 60        # overlay + thumbnail ที่แดชบอร์ดแสดงย้อนหลัง
+ORPHAN_GRACE_SEC = 3600     # overlay ที่ DB ไม่อ้างถึงต้องเก่ากว่านี้ก่อนลบ (worker เขียนไฟล์ก่อนบันทึก DB)
+OVERLAY_JPEG_QUALITY = 80   # ค่าเริ่มต้นของ OpenCV คือ 95 (~250 KB) ที่ 80 เหลือ ~140 KB
+
 # ---------- รูปทรงภาพ ----------
 FRAME_SIZE = (720, 576)     # (w, h) ของ snapshot จากกล้อง
 

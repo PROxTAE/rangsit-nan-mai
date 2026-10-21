@@ -9,12 +9,12 @@ def relative(path):
     return path.relative_to(config.ROOT).as_posix()
 
 
-def atomic_image(path, image):
+def atomic_image(path, image, quality=None):
     from preprocess import save_image
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f'.{path.stem}-{uuid.uuid4().hex}.tmp{path.suffix}')
     try:
-        save_image(temporary, image)
+        save_image(temporary, image, quality)
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
