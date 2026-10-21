@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Database & Runtime Locks
+*.db
+*.db-shm
+*.db-wal
+results/*.db
+results/*.db-shm
+results/*.db-wal
+results/*.lock
+*.lock
+
+# Logs
+*.log
+results/*.log
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Raw downloaded CCTV frames
+data/raw/

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f6f5">
+  <title>RS_TRAFFIC_ — Rangsit Traffic Observatory</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%239253f5' d='M11 0h10v11h11v10H21v11H11V21H0V11h11z'/%3E%3C/svg%3E">
+  <link rel="preload" href="/static/vendor/fonts/NotoSansThai-Variable.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script defer src="/static/vendor/chart.umd.min.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#overview" aria-label="Rangsit Traffic หน้าหลัก"><span class="pixel-mark" aria-hidden="true">✚</span> RS_TRAFFIC<span class="purple">_</span></a>
+    <nav aria-label="เมนูหลัก"><a class="active" href="#overview">ภาพรวม</a><i>/</i><a href="#history">ประวัติย้อนหลัง</a><i>/</i><a href="#trends">แนวโน้ม</a><i>/</i><a href="#camera">กล้อง CCTV</a></nav>
+    <div class="system-time"><span>SYS.TIME / UTC+7</span><b id="clock">--:--:--</b></div>
+    <button id="export" class="button black">ส่งออก CSV <span>↗</span></button>
+  </header>
+  <aside class="rail" aria-hidden="true"><span>/01</span><p>RANGSIT / TRAFFIC OBSERVATORY</p><div>+<br>+<br>+<br>+</div><small>2026</small></aside>
+  <main id="overview">
+    <section class="intro">
+      <div><div class="eyebrow">/01 — TRAFFIC OBSERVATORY</div><h1>TRAFFIC<br>CONTROL<span class="purple">_</span></h1></div>
+      <div class="intro-description"><span class="mono purple">RANGSIT CITY / CCTV MONITORING</span><p>มอนิเตอร์ความหนาแน่นจราจร</p><small>กล้องเทศบาลนครรังสิต · วิเคราะห์แยกสองฝั่งถนน</small></div>
+      <div class="intro-controls">
+        <div class="range-tabs" role="group" aria-label="เลือกช่วงเวลา"><button class="selected" data-range="today">วันนี้</button><button data-range="7">7 วัน</button><button data-range="30">30 วัน</button><button data-range="custom">กำหนดช่วงเวลา ↗</button></div>
+        <div class="dates"><label>ตั้งแต่ <input id="date-from" type="date" aria-label="วันที่เริ่มต้น"></label><label>ถึง <input id="date-to" type="date" aria-label="วันที่สิ้นสุด"></label><button id="apply-dates" class="button compact">ใช้ช่วงเวลา ↗</button></div>
+        <div class="status-line"><span id="worker-status" class="status-chip neutral"><i></i>กำลังตรวจสอบระบบ</span><span id="connection" class="connection">กำลังเชื่อมต่อ</span></div>
+        <div id="freshness" class="mono muted">กำลังโหลดข้อมูลล่าสุด…</div>
+      </div>
+    </section>
+    <div id="error-banner" class="notice error" hidden><span id="error-text"></span><button id="retry">ลองใหม่ ↻</button></div>
+    <div id="stale-banner" class="notice" hidden></div>
+    <div class="monitor-grid">
+      <section class="panel camera-panel" id="camera" aria-labelledby="camera-title">
+        <div class="panel-title"><h2 id="camera-title"><span>/02</span> ภาพกล้องล่าสุด</h2><span class="mono muted">CAM_01 / RANGSIT</span></div>
+        <div class="camera-view">
+          <div class="camera-meta"><span id="camera-timestamp">WAITING FOR DATA</span><span class="camera-tag">● SNAPSHOT</span></div>
+          <img id="camera-image" alt="ภาพล่าสุดจากกล้อง CCTV รังสิต" hidden>
+          <div id="camera-placeholder" class="empty-image"><span class="crosshair">⌖</span><b>กำลังโหลดภาพกล้อง</b><small>ภาพและผลวิเคราะห์จะปรากฏเมื่อข้อมูลพร้อม</small></div>
+          <button id="camera-zoom-trigger" class="camera-zoom-trigger" aria-label="คลิกเพื่อขยายภาพเต็มจอ" title="คลิกเพื่อขยายเต็มจอ">
+            <span class="zoom-trigger-badge"><i class="zoom-trigger-icon">⛶</i> ซูมเต็มจอ</span>
+          </button>
+          <span class="image-corner tl"></span><span class="image-corner br"></span>
+        </div>
+        <div class="camera-toolbar">
+          <div class="segmented" role="group" aria-label="ชนิดภาพ"><button data-image="raw" class="selected">ภาพต้นฉบับ</button><button data-image="overlay">ภาพวิเคราะห์</button></div>
+          <div class="camera-toolbar-right">
+            <button id="camera-zoom-btn" class="button compact camera-zoom-btn" title="ขยายเต็มจอ (F)"><i class="zoom-trigger-icon">⛶</i> เต็มจอ</button>
+            <span id="snapshot-interval" class="mono muted">SNAPSHOT / 300 SEC</span>
+          </div>
+        </div>
+      </section>
+      <section class="metrics" aria-label="ผลล่าสุดของสองฝั่ง"><article class="panel metric" id="metric-left"><div class="metric-heading"><div><span class="mono purple">/ L01</span><h2>ฝั่งซ้าย</h2><small>วิ่งออกจากกล้อง</small></div><span class="level-chip">—</span></div><div class="metric-number"><strong>—</strong><svg class="sparkline" viewBox="0 0 150 40" aria-hidden="true"></svg></div><p>สัดส่วนพื้นที่ถนนที่รถครอบครอง</p><div class="meter"><i></i></div><div class="meter-labels mono"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div><div class="metric-note"></div></article>
+      <article class="panel metric" id="metric-right"><div class="metric-heading"><div><span class="mono purple">/ L02</span><h2>ฝั่งขวา</h2><small>วิ่งเข้าหากล้อง</small></div><span class="level-chip">—</span></div><div class="metric-number"><strong>—</strong><svg class="sparkline" viewBox="0 0 150 40" aria-hidden="true"></svg></div><p>สัดส่วนพื้นที่ถนนที่รถครอบครอง</p><div class="meter"><i></i></div><div class="meter-labels mono"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div><div class="metric-note"></div></article></section>
+    </div>
+    <div class="section-controls" id="trends"><div><span class="mono purple">SELECTED PERIOD / </span><b id="period-label">วันนี้</b><small id="sample-count"></small></div><label>ฝั่งถนน <select id="lane-filter"><option value="all">ทั้งหมด / เปรียบเทียบสองฝั่ง</option><option value="left">ฝั่งซ้าย</option><option value="right">ฝั่งขวา</option></select></label></div>
+    <section class="summary-grid" id="summary" aria-label="สรุปช่วงเวลาที่เลือก"></section>
+    <div class="analytics-grid">
+      <section class="panel chart-panel"><div class="panel-title"><h2><span>/03</span> แนวโน้มความหนาแน่น</h2><span id="bucket-label" class="mono badge">ตามรอบเก็บภาพ</span></div><div class="chart-legend"><span><i class="line purple-line"></i>ฝั่งซ้าย</span><span><i class="line black-line"></i>ฝั่งขวา</span><small>เกณฑ์ occupancy อ้างอิง · สถานะจริงใช้ motion ร่วมด้วย</small></div><div class="chart-wrap"><canvas id="trend-chart" aria-label="กราฟเปอร์เซ็นต์ความหนาแน่นตามเวลา" role="img"></canvas><p id="chart-empty" class="chart-empty" hidden>ยังไม่มีข้อมูลในช่วงเวลานี้</p></div></section>
+      <section class="panel heat-panel" aria-labelledby="heat-title">
+        <div class="panel-title">
+          <h2 id="heat-title"><span>/04</span> ช่วงเวลาหนาแน่น</h2>
+          <div class="heat-view" role="group" aria-label="รูปแบบ Heatmap">
+            <button data-heat-mode="both" class="selected" aria-pressed="true">สองฝั่ง</button>
+            <button data-heat-mode="left" aria-pressed="false">ซ้าย</button>
+            <button data-heat-mode="right" aria-pressed="false">ขวา</button>
+          </div>
+        </div>
+        <div class="heat-intro"><span>ความหนาแน่นเฉลี่ยรายชั่วโมง</span><span class="mono">00:00 — 24:00</span></div>
+        <div class="heat-scroll" tabindex="0" role="region" aria-label="ตาราง Heatmap เลื่อนดูวันและเวลาได้"><div id="heatmap" class="heatmap"></div></div>
+        <div class="heat-key"><span class="heat-missing-key"><i></i>ไม่มีข้อมูล</span><span class="heat-scale"><small>0%</small><i></i><small>60%+</small></span></div>
+        <div class="heat-inspector" id="heat-inspector">
+          <div class="heat-detail-heading">
+            <div class="heat-heading-left">
+              <span class="mono purple">HOUR / INSPECTOR</span>
+              <b id="heat-selection-label">เลือกช่วงเวลาเพื่อดูรายละเอียด</b>
+            </div>
+            <button id="heat-reset-btn" class="button compact heat-reset-btn" title="กลับไปชั่วโมงล่าสุดที่มีข้อมูล" hidden>⟲ ชั่วโมงล่าสุด</button>
+          </div>
+          <div class="heat-values" id="heat-values"></div>
+          <div class="heat-comparison-note" id="heat-comparison-note">คลิกเพื่อเลือกชั่วโมง · เลื่อนเมาส์ผ่านเพื่อพรีวิว</div>
+        </div>
+        <p class="heat-help">เทียบตามช่วงวันที่เลือก · สีเข้ม = หนาแน่นมาก · ลายเฉียง = ยังไม่มีข้อมูล</p>
+      </section>
+    </div>
+    <section class="panel history-panel" id="history"><div class="panel-title"><h2><span>/05</span> ประวัติย้อนหลัง</h2><div class="history-controls"><label>สถานะ <select id="level-filter"><option value="">ทั้งหมด</option><option value="clear">โล่ง</option><option value="moderate">ปานกลาง</option><option value="congested">ติด</option></select></label><span class="mono muted">คลิกแถวเพื่อดูรายละเอียด ↗</span></div></div><button id="new-data" class="new-data" hidden>มีข้อมูลใหม่ — แสดงรายการล่าสุด ↻</button><div class="table-scroll"><table><thead><tr><th>วัน / เวลาเก็บภาพ</th><th>ฝั่งถนน</th><th>ความหนาแน่น</th><th>สถานะ</th><th>ภาพ</th><th aria-label="รายละเอียด"></th></tr></thead><tbody id="history-body"><tr><td colspan="6" class="empty-cell">กำลังโหลดประวัติ…</td></tr></tbody></table></div><div class="table-footer"><span id="history-count">—</span><div class="pagination"><button id="prev-page" aria-label="หน้าก่อน">←</button><span id="page-label" class="mono">01 / 01</span><button id="next-page" aria-label="หน้าถัดไป">→</button></div></div></section>
+    <footer><span><i id="footer-dot" class="dot"></i><b id="footer-status">CONNECTING</b></span><span class="footer-center">RANGSIT_TRAFFIC / IMAGE PROCESSING</span><span id="footer-interval">CAM_01 / INTERVAL: 300s</span><a href="/docs" target="_blank" rel="noopener">API ↗</a></footer>
+  </main>
+  <dialog id="detail-dialog"><div class="dialog-title"><div><span class="mono purple">FRAME / INSPECTOR</span><h2 id="detail-title">รายละเอียดการวิเคราะห์</h2></div><button id="close-dialog" aria-label="ปิดรายละเอียด">✕</button></div><div id="detail-content"></div></dialog>
+
+  <!-- Fullscreen Zoom Lightbox Modal with Modern Animations -->
+  <div id="image-lightbox" class="lightbox-modal" role="dialog" aria-modal="true" aria-label="ภาพกล้องแบบเต็มจอ" hidden>
+    <div class="lightbox-backdrop" id="lightbox-backdrop"></div>
+    <div class="lightbox-container" id="lightbox-container">
+      <header class="lightbox-header">
+        <div class="lightbox-meta">
+          <div class="lightbox-tag"><span class="live-dot"></span><span class="mono purple">CAM_01 / CCTV RANGSIT</span></div>
+          <h3 id="lightbox-title">ภาพกล้อง CCTV เทศบาลนครรังสิต</h3>
+          <span id="lightbox-timestamp" class="mono muted">--:--:--</span>
+        </div>
+        <div class="lightbox-toolbar">
+          <div class="segmented" role="group" aria-label="ชนิดภาพเต็มจอ">
+            <button data-lightbox-image="raw" class="selected">ภาพต้นฉบับ</button>
+            <button data-lightbox-image="overlay">ภาพวิเคราะห์</button>
+          </div>
+          <div class="lightbox-zoom-controls">
+            <button id="lightbox-zoom-out" class="button compact" title="ซูมออก (−)" aria-label="ซูมออก">− ซูมออก</button>
+            <span id="lightbox-zoom-level" class="mono">100%</span>
+            <button id="lightbox-zoom-in" class="button compact" title="ซูมเข้า (+)" aria-label="ซูมเข้า">+ ซูมเข้า</button>
+            <button id="lightbox-zoom-reset" class="button compact" title="รีเซ็ตขนาด 100%">100%</button>
+          </div>
+          <button id="lightbox-browser-fs" class="button compact" title="ขยายเต็มจอเบราว์เซอร์">⛶ ขยายจอ</button>
+          <button id="lightbox-close" class="button compact black close-btn" title="ปิด (ESC)" aria-label="ปิดเต็มจอ">✕ ปิด</button>
+        </div>
+      </header>
+      <div class="lightbox-stage" id="lightbox-stage">
+        <div class="lightbox-canvas" id="lightbox-canvas">
+          <img id="lightbox-image" alt="ภาพขยายเต็มจอ">
+          <div class="lightbox-corner tl"></div>
+          <div class="lightbox-corner tr"></div>
+          <div class="lightbox-corner bl"></div>
+          <div class="lightbox-corner br"></div>
+        </div>
+      </div>
+      <footer class="lightbox-footer">
+        <div id="lightbox-metrics" class="lightbox-metrics"></div>
+        <div class="lightbox-hints mono muted">
+          <span><kbd>ล้อเมาส์</kbd> ซูมเข้า-ออก</span>
+          <i>·</i>
+          <span><kbd>คลิกลาก</kbd> เลื่อนดูภาพ</span>
+          <i>·</i>
+          <span><kbd>ดับเบิลคลิก</kbd> สลับ 100% / 200%</span>
+          <i>·</i>
+          <span><kbd>ESC</kbd> ปิด</span>
+        </div>
+      </footer>
+    </div>
+  </div>
+</body>
+</html>
