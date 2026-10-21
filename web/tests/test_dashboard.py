@@ -130,6 +130,23 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(comparison['sample_count'],1)
         self.assertAlmostEqual(comparison['difference'],-.055)
 
+    def test_trend_window_returns_every_frame_inside_it(self):
+        for time,name in [('11:59:00','115900'),('12:00:00','120000'),('12:01:00','120100'),('12:30:00','123000')]:
+            db.upsert_frame(sample_rows(f'2026-10-21 {time}',name))
+        data=self.client.get('/api/trend',params={'from':'2026-10-21T12:00:00+07:00','to':'2026-10-21T12:30:00+07:00',
+                                                  'lane':'left'}).json()
+        self.assertEqual(data['bucket_seconds'],0)
+        self.assertEqual([item['timestamp'][11:16] for item in data['series']],['12:00','12:01'])
+        self.assertEqual({item['lane'] for item in data['series']},{'left'})
+        self.assertEqual(data['range']['from'],'2026-10-21T12:00:00+07:00')
+        # ISO แบบ UTC (Z) ที่หน้าเว็บส่งมาจาก toISOString()
+        utc=self.client.get('/api/trend',params={'from':'2026-10-21T05:00:00.000Z','to':'2026-10-21T05:30:00.000Z'}).json()
+        self.assertEqual(len(utc['series']),4)
+        week=self.client.get('/api/trend',params={'from':'2026-10-15T00:00:00+07:00','to':'2026-10-22T00:00:00+07:00'}).json()
+        self.assertEqual(week['bucket_seconds'],3600)
+        self.assertEqual(self.client.get('/api/trend',params={'from':'2026-10-21T13:00:00+07:00',
+                                                               'to':'2026-10-21T12:00:00+07:00'}).status_code,422)
+
     def test_pagination_and_missing_images(self):
         self.seed()
         first=self.client.get('/api/history',params={**self.range,'page_size':1}).json()

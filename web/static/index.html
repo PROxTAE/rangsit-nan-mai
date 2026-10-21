@@ -7,9 +7,9 @@
   <title>RS_TRAFFIC_ — Rangsit Traffic Observatory</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%239253f5' d='M11 0h10v11h11v10H21v11H11V21H0V11h11z'/%3E%3C/svg%3E">
   <link rel="preload" href="/static/vendor/fonts/NotoSansThai-Variable.ttf" as="font" type="font/ttf" crossorigin>
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/styles.css?v=trend1">
   <script defer src="/static/vendor/chart.umd.min.js"></script>
-  <script defer src="/static/app.js"></script>
+  <script defer src="/static/app.js?v=trend1"></script>
 </head>
 <body>
   <header class="topbar">
@@ -58,7 +58,12 @@
     <div class="section-controls" id="trends"><div><span class="mono purple">SELECTED PERIOD / </span><b id="period-label">วันนี้</b><small id="sample-count"></small></div><label>ฝั่งถนน <select id="lane-filter"><option value="all">ทั้งหมด / เปรียบเทียบสองฝั่ง</option><option value="left">ฝั่งซ้าย</option><option value="right">ฝั่งขวา</option></select></label></div>
     <section class="summary-grid" id="summary" aria-label="สรุปช่วงเวลาที่เลือก"></section>
     <div class="analytics-grid">
-      <section class="panel chart-panel"><div class="panel-title"><h2><span>/03</span> แนวโน้มความหนาแน่น</h2><span id="bucket-label" class="mono badge">ตามรอบเก็บภาพ</span></div><div class="chart-legend"><span><i class="line purple-line"></i>ฝั่งซ้าย</span><span><i class="line black-line"></i>ฝั่งขวา</span><small>เกณฑ์ occupancy อ้างอิง · สถานะจริงใช้ motion ร่วมด้วย</small></div><div class="chart-wrap"><canvas id="trend-chart" aria-label="กราฟเปอร์เซ็นต์ความหนาแน่นตามเวลา" role="img"></canvas><p id="chart-empty" class="chart-empty" hidden>ยังไม่มีข้อมูลในช่วงเวลานี้</p></div></section>
+      <section class="panel chart-panel"><div class="panel-title"><h2><span>/03</span> แนวโน้มความหนาแน่น</h2><span id="bucket-label" class="mono badge">ตามรอบเก็บภาพ</span></div><div class="trend-toolbar">
+          <div class="segmented trend-spans" role="group" aria-label="ความกว้างของช่วงเวลาบนกราฟ"><button data-span="3600">1 ชม.</button><button data-span="10800">3 ชม.</button><button data-span="21600">6 ชม.</button><button data-span="43200">12 ชม.</button><button data-span="all" class="selected">ทั้งช่วง</button><button data-span="custom">กำหนดเอง</button></div>
+          <div class="trend-nav"><button id="trend-prev" aria-label="เลื่อนไปช่วงก่อนหน้า" title="ช่วงก่อนหน้า">◀</button><span id="trend-window" class="mono">—</span><button id="trend-next" aria-label="เลื่อนไปช่วงถัดไป" title="ช่วงถัดไป">▶</button><button id="trend-latest" title="กลับไปช่วงล่าสุด">ล่าสุด</button></div>
+          <form id="trend-custom" class="trend-custom" hidden><label>ตั้งแต่ <input type="datetime-local" id="trend-from" required></label><label>ถึง <input type="datetime-local" id="trend-to" required></label><button type="submit" class="black">ดูช่วงนี้</button></form>
+        </div>
+        <div class="chart-legend"><span><i class="line purple-line"></i>ฝั่งซ้าย</span><span><i class="line black-line"></i>ฝั่งขวา</span><small>เกณฑ์ occupancy อ้างอิง · สถานะจริงใช้ motion ร่วมด้วย</small></div><div class="chart-wrap" id="chart-wrap"><canvas id="trend-chart" aria-label="กราฟเปอร์เซ็นต์ความหนาแน่นตามเวลา" role="img"></canvas><div id="trend-brush" class="trend-brush" hidden></div><p id="chart-empty" class="chart-empty" hidden>ยังไม่มีข้อมูลในช่วงเวลานี้</p></div><p class="trend-hint">ลากบนกราฟเพื่อซูมเข้า · ดับเบิลคลิกเพื่อกลับไปทั้งช่วง</p></section>
       <section class="panel heat-panel" aria-labelledby="heat-title">
         <div class="panel-title">
           <h2 id="heat-title"><span>/04</span> ช่วงเวลาหนาแน่น</h2>

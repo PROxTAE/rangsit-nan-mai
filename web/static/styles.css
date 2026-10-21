@@ -80,6 +80,19 @@ html{scrollbar-gutter:stable}
 .heat-empty small{font-size:9px;color:#aaa0b2}
 .chart-panel{display:flex;flex-direction:column}
 .chart-panel .chart-wrap{flex:1;min-height:250px}
+.trend-toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 12px;padding:11px 17px 0}
+.trend-toolbar button{padding:4px 10px;font-size:10px;border-color:var(--line);white-space:nowrap}
+.trend-nav{display:flex;align-items:center;gap:5px}
+.trend-nav #trend-window{min-width:168px;text-align:center;font-size:10px;padding:0 4px}
+.trend-nav #trend-latest{margin-left:4px}
+.trend-custom{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;width:100%;font-size:10px;color:var(--muted)}
+.trend-custom label{display:flex;align-items:center;gap:5px}
+.trend-custom input{font:11px var(--mono);padding:4px 6px}
+.chart-wrap canvas{cursor:crosshair;touch-action:pan-y}
+.trend-brush{position:absolute;background:rgba(146,83,245,.13);border:1px solid var(--purple);border-width:0 1px;pointer-events:none}
+.trend-hint{font-size:9px;color:#909098;margin:0 17px 10px}
+@media(hover:none){.trend-hint{display:none}}
+@media(max-width:480px){.trend-toolbar{padding:10px 11px 0}.trend-spans{flex-wrap:wrap}.trend-toolbar button{padding:4px 7px;font-size:9px}.trend-nav{width:100%}.trend-nav #trend-window{flex:1;min-width:0}.trend-hint{margin:0 11px 9px}}
 @media(min-width:821px){.analytics-grid{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}}
 @media(max-width:480px){
   .heat-panel .panel-title{padding:10px;gap:7px;flex-wrap:wrap}

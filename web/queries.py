@@ -16,9 +16,40 @@ def where(start, end, lane='all', level=None):
     return clause, args
 
 
+def bucket_for(start, end):
+    """ช่วงสั้นแสดงทุกเฟรม ช่วงยาวเฉลี่ยรายชั่วโมง/รายวัน กันจำนวนจุดบนกราฟเยอะเกิน"""
+    return 0 if end-start <= 2*86400 else (3600 if end-start <= 35*86400 else 86400)
+
+
+def series(conn, clause, args, bucket):
+    if bucket:
+        sql = f'''SELECT lane,((captured_at+25200)/{bucket})*{bucket}-25200 t,
+            AVG(occupancy) occupancy,COUNT(*) sample_count FROM results WHERE {clause}
+            GROUP BY lane,t ORDER BY t,lane'''
+    else:
+        sql = f'''SELECT lane,captured_at t,occupancy,1 sample_count
+            FROM results WHERE {clause} ORDER BY captured_at,lane'''
+    rows = [dict(r) for r in conn.execute(sql, args)]
+    for item in rows:
+        item['timestamp'] = db.iso_time(item.pop('t'))
+    return rows
+
+
+def trend(start, end, lane):
+    """เฉพาะเส้นแนวโน้มของช่วงเวลาที่ผู้ใช้ซูม/เลื่อนดู ช่วงสั้นจึงได้ทุกเฟรมแม้ภาพรวมจะเลือกหลายวัน"""
+    clause, args = where(start, end, lane)
+    bucket = bucket_for(start, end)
+    with db.connect() as conn:
+        conn.execute('BEGIN')
+        revision = conn.execute('SELECT data_revision FROM system_state WHERE id=1').fetchone()[0]
+        rows = series(conn, clause, args, bucket)
+    return dict(revision=revision, series=rows, bucket_seconds=bucket, lane=lane,
+                range={'from': db.iso_time(start), 'to': db.iso_time(end)})
+
+
 def dashboard(start, end, lane):
     clause, args = where(start, end, lane)
-    bucket = 0 if end-start <= 2*86400 else (3600 if end-start <= 35*86400 else 86400)
+    bucket = bucket_for(start, end)
     with db.connect() as conn:
         conn.execute('BEGIN')
         revision = conn.execute('SELECT data_revision FROM system_state WHERE id=1').fetchone()[0]
@@ -39,16 +70,7 @@ def dashboard(start, end, lane):
                 GROUP BY hour ORDER BY mean DESC,hour LIMIT 1''', [*args, stat['lane']]).fetchone()
             stat['peak_hour'] = dict(peak_hour) if peak_hour else None
             stats.append(stat)
-        if bucket:
-            sql = f'''SELECT lane,((captured_at+25200)/{bucket})*{bucket}-25200 t,
-                AVG(occupancy) occupancy,COUNT(*) sample_count FROM results WHERE {clause}
-                GROUP BY lane,t ORDER BY t,lane'''
-        else:
-            sql = f'''SELECT lane,captured_at t,occupancy,1 sample_count
-                FROM results WHERE {clause} ORDER BY captured_at,lane'''
-        series = [dict(r) for r in conn.execute(sql, args)]
-        for item in series:
-            item['timestamp'] = db.iso_time(item.pop('t'))
+        timeline = series(conn, clause, args, bucket)
         # This panel compares both sides independently of the lane filter used
         # by the timeline/history. Its date range still follows the dashboard.
         heat_clause, heat_args = where(start, end)
@@ -70,7 +92,7 @@ def dashboard(start, end, lane):
             WHERE f.captured_at>=? AND f.captured_at<?
             GROUP BY date,hour ORDER BY date,hour''', [start, end])]
         frames = conn.execute(f'SELECT COUNT(DISTINCT frame_id) FROM results WHERE {clause}', args).fetchone()[0]
-    return dict(revision=revision, latest=latest, summary=stats, series=series, heatmap=heatmap,
+    return dict(revision=revision, latest=latest, summary=stats, series=timeline, heatmap=heatmap,
                 heatmap_comparison=comparison,
                 frame_count=frames, bucket_seconds=bucket, timezone='Asia/Bangkok',
                 range={'from': db.iso_time(start), 'to': db.iso_time(end)}, lane=lane)

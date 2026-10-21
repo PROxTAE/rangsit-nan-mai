@@ -120,6 +120,12 @@ def dashboard(from_value: str | None = Query(None, alias='from'), to: str | None
     return result
 
 
+@app.get('/api/trend')
+def trend(from_value: str | None = Query(None, alias='from'), to: str | None = None,
+          lane: Literal['all', 'left', 'right'] = 'all'):
+    return queries.trend(*range_or_422(from_value, to), lane)
+
+
 @app.get('/api/history')
 def history(from_value: str | None = Query(None, alias='from'), to: str | None = None,
             lane: Literal['all', 'left', 'right'] = 'all',

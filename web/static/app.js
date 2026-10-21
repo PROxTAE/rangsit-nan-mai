@@ -5,7 +5,9 @@ const state = {
   config: null, data: null, revision: -1, wantedRevision: -1, page: 1, pageSize: 25,
   total: 0, image: 'raw', sequence: 0, controller: null, chart: null, latest: null, refreshTimer: null,
   range: 'today', connection: false, health: null, heatMode: 'both', heatSelection: null,
-  heatHover: null, heatPinned: false, heatFocusLane: 'left', heatCells: new Map(), heatPairs: new Map()
+  heatHover: null, heatPinned: false, heatFocusLane: 'left', heatCells: new Map(), heatPairs: new Map(),
+  // กราฟแนวโน้ม: span = 'all' (ตามช่วงที่เลือกด้านบน) | วินาทีของปุ่ม 1/3/6/12 ชม. | 'custom' | 'window' (ลากซูม/เลื่อน)
+  trend: {span: 'all', from: null, to: null, follow: false}, trendController: null, trendSequence: 0
 };
 
 const lightbox = {
@@ -72,6 +74,7 @@ function chooseRange(range){
   $('#date-to').value = today;
   $('#date-from').value = addDays(today, range === 'today' ? 0 : 1 - Number(range));
   state.page = 1;
+  state.trend.span = 'all';
   refresh('filter');
 }
 
@@ -104,7 +107,7 @@ async function refresh(reason = 'manual'){
     $('#error-banner').hidden = true;
     renderLatest(data.latest);
     renderSummary(data);
-    renderChart(data);
+    loadTrend();
     renderHeatmap();
     if(history){
       renderHistory(history);
@@ -243,7 +246,7 @@ function renderChart(data){
       borderColor: lane === 'left' ? '#9253f5' : '#19191e',
       borderWidth: 1.8,
       borderDash: lane === 'right' ? [5, 4] : [],
-      pointRadius: values.length < 25 ? 2.5 : 0,
+      pointRadius: values.length < 25 ? 2.5 : values.length <= 90 ? 1.6 : 0,
       pointHoverRadius: 5,
       tension: 0,
       spanGaps: false
@@ -298,6 +301,177 @@ function renderChart(data){
   }
   $('#chart-empty').hidden = data.series.length > 0;
   $('#bucket-label').textContent = data.bucket_seconds === 0 ? 'ตามรอบเก็บภาพ' : data.bucket_seconds === 3600 ? 'เฉลี่ยรายชั่วโมง' : 'เฉลี่ยรายวัน';
+}
+
+/* ==========================================================================
+   TREND WINDOW: เลือกความกว้าง / เลื่อนก่อน-หลัง / กำหนดเอง / ลากซูม
+   ช่วงที่ไม่ใช่ 'all' โหลดจาก /api/trend แยก ช่วงสั้นจึงได้ทุกเฟรมแม้ภาพรวมเลือกหลายวัน
+   ========================================================================== */
+const MIN_TREND_SPAN = 10 * 60 * 1000;
+const isPresetSpan = () => /^\d+$/.test(state.trend.span);
+const followTolerance = () => 2 * (state.config?.interval_sec || 60) * 1000;
+
+function bangkokInput(ms){
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Bangkok', year:'numeric', month:'2-digit',
+    day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(new Date(ms)).map(part => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+function trendLabel(from, to){
+  const day = ms => new Intl.DateTimeFormat('th-TH', {timeZone:'Asia/Bangkok', day:'numeric', month:'short'}).format(new Date(ms));
+  return day(from) === day(to)
+    ? `${day(from)} ${shortTime(from)}–${shortTime(to)}`
+    : `${day(from)} ${shortTime(from)} – ${day(to)} ${shortTime(to)}`;
+}
+
+function currentTrendRange(){
+  if(state.trend.span !== 'all') return state.trend.from === null ? null : {from: state.trend.from, to: state.trend.to};
+  return state.data ? {from: Date.parse(state.data.range.from), to: Date.parse(state.data.range.to)} : null;
+}
+
+function isLatest(range){
+  return range.to >= Date.now() - followTolerance();
+}
+
+function updateTrendControls(){
+  $$('[data-span]').forEach(button => {
+    const selected = button.dataset.span === state.trend.span;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+  $('#trend-custom').hidden = state.trend.span !== 'custom';
+  const range = currentTrendRange();
+  if(!range) return;
+  $('#trend-window').textContent = trendLabel(range.from, Math.min(range.to, Date.now()));
+  $('#trend-next').disabled = isLatest(range);
+}
+
+function setTrendWindow(from, to){
+  const now = Date.now();
+  if(to > now){
+    // ปุ่ม 1/3/6/12 ชม. คงความกว้างไว้ ช่วงอื่นตัดปลายที่เวลาปัจจุบัน
+    if(isPresetSpan()) from -= to - now;
+    to = now;
+  }
+  if(to - from < MIN_TREND_SPAN) from = to - MIN_TREND_SPAN;
+  state.trend.from = Math.round(from);
+  state.trend.to = Math.round(to);
+  state.trend.follow = to >= now - followTolerance();
+  loadTrend();
+}
+
+function chooseSpan(span){
+  const range = currentTrendRange();
+  state.trend.span = span;
+  if(span === 'all' || !range){
+    state.trend.span = 'all';
+    loadTrend();
+    return;
+  }
+  if(span === 'custom'){
+    state.trend.from = range.from;
+    state.trend.to = Math.min(range.to, Date.now());
+    $('#trend-from').value = bangkokInput(state.trend.from);
+    $('#trend-to').value = bangkokInput(state.trend.to);
+    updateTrendControls();
+    $('#trend-from').focus();
+    return;
+  }
+  // กำลังดูช่วงล่าสุด -> ยึดเวลาปัจจุบัน, ดูย้อนหลังอยู่ -> ยึดปลายช่วงที่ดูอยู่
+  const end = isLatest(range) ? Date.now() : range.to;
+  setTrendWindow(end - Number(span) * 1000, end);
+}
+
+function shiftTrend(direction){
+  const range = currentTrendRange();
+  if(!range) return;
+  const width = range.to - range.from;
+  if(state.trend.span === 'all' || state.trend.span === 'custom') state.trend.span = 'window';
+  setTrendWindow(range.from + direction * width, range.to + direction * width);
+}
+
+async function loadTrend(){
+  if(!state.data) return;
+  if(state.trend.span === 'all'){
+    state.trendController?.abort();
+    updateTrendControls();
+    renderChart(state.data);
+    return;
+  }
+  if(state.trend.follow){
+    // ดูช่วงล่าสุดอยู่: เลื่อนตามข้อมูลใหม่ที่เข้ามา
+    const now = Date.now();
+    if(isPresetSpan()) state.trend.from = now - Number(state.trend.span) * 1000;
+    state.trend.to = now;
+  }
+  updateTrendControls();
+  const sequence = ++state.trendSequence;
+  state.trendController?.abort();
+  state.trendController = new AbortController();
+  const params = new URLSearchParams({from: new Date(state.trend.from).toISOString(),
+    to: new Date(state.trend.to).toISOString(), lane: $('#lane-filter').value});
+  try {
+    const data = await getJSON('/api/trend?' + params, state.trendController.signal);
+    if(sequence === state.trendSequence) renderChart(data);
+  } catch(error){
+    if(error.name !== 'AbortError') showError(error);
+  }
+}
+
+function setupTrendEvents(){
+  $$('[data-span]').forEach(button => button.addEventListener('click', () => chooseSpan(button.dataset.span)));
+  $('#trend-prev').addEventListener('click', () => shiftTrend(-1));
+  $('#trend-next').addEventListener('click', () => shiftTrend(1));
+  $('#trend-latest').addEventListener('click', () => {
+    const range = currentTrendRange();
+    if(!range) return;
+    const width = Math.min(range.to, Date.now()) - range.from;
+    if(state.trend.span === 'all' || state.trend.span === 'custom') state.trend.span = 'window';
+    setTrendWindow(Date.now() - width, Date.now());
+  });
+  $('#trend-custom').addEventListener('submit', event => {
+    event.preventDefault();
+    const from = Date.parse($('#trend-from').value + ':00+07:00'), to = Date.parse($('#trend-to').value + ':00+07:00');
+    if(!(to > from)){ showError(new Error('เวลาสิ้นสุดต้องหลังเวลาเริ่มต้น')); return; }
+    if(to - from > 366 * 86400000){ showError(new Error('เลือกช่วงเวลาได้ไม่เกิน 366 วัน')); return; }
+    $('#error-banner').hidden = true;
+    setTrendWindow(from, to);
+  });
+
+  // ลากบนกราฟ (เมาส์/ปากกา) เพื่อซูมเข้า ช่วงที่ลากแคบกว่า 8 px ถือเป็นคลิกธรรมดา
+  const canvas = $('#trend-chart'), brush = $('#trend-brush');
+  let start = null;
+  const clampX = x => Math.min(Math.max(x, state.chart.chartArea.left), state.chart.chartArea.right);
+  canvas.addEventListener('pointerdown', event => {
+    const area = state.chart?.chartArea;
+    if(!area || event.button !== 0 || event.pointerType === 'touch' || event.offsetX < area.left || event.offsetX > area.right) return;
+    start = event.offsetX;
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener('pointermove', event => {
+    if(start === null) return;
+    const area = state.chart.chartArea, x = clampX(event.offsetX);
+    Object.assign(brush.style, {left: canvas.offsetLeft + Math.min(start, x) + 'px', width: Math.abs(x - start) + 'px',
+      top: canvas.offsetTop + area.top + 'px', height: area.bottom - area.top + 'px'});
+    brush.hidden = Math.abs(x - start) < 3;
+  });
+  canvas.addEventListener('pointerup', event => {
+    if(start === null) return;
+    const x = clampX(event.offsetX), scale = state.chart.scales.x, left = Math.min(start, x), right = Math.max(start, x);
+    start = null;
+    brush.hidden = true;
+    if(right - left < 8) return;
+    let from = scale.getValueForPixel(left), to = scale.getValueForPixel(right);
+    if(to - from < MIN_TREND_SPAN){
+      const middle = (from + to) / 2;
+      from = middle - MIN_TREND_SPAN / 2;
+      to = middle + MIN_TREND_SPAN / 2;
+    }
+    state.trend.span = 'window';
+    setTrendWindow(from, to);
+  });
+  canvas.addEventListener('pointercancel', () => { start = null; brush.hidden = true; });
+  canvas.addEventListener('dblclick', () => chooseSpan('all'));
 }
 
 /* ==========================================================================
@@ -791,6 +965,7 @@ function setupEvents(){
   $('#apply-dates').addEventListener('click', () => {
     state.range = 'custom';
     state.page = 1;
+    state.trend.span = 'all';
     $$('[data-range]').forEach(button => button.classList.toggle('selected', button.dataset.range === 'custom'));
     refresh('filter');
   });
@@ -955,6 +1130,7 @@ function setupEvents(){
   });
 
   setupLightboxEvents();
+  setupTrendEvents();
 }
 
 async function initialize(){
