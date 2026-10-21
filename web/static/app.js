@@ -7,7 +7,9 @@ const state = {
   range: 'today', connection: false, health: null, heatMode: 'both', heatSelection: null,
   heatHover: null, heatPinned: false, heatFocusLane: 'left', heatCells: new Map(), heatPairs: new Map(),
   // กราฟแนวโน้ม: span = 'all' (ตามช่วงที่เลือกด้านบน) | วินาทีของปุ่ม 1/3/6/12 ชม. | 'custom' | 'window' (ลากซูม/เลื่อน)
-  trend: {span: 'all', from: null, to: null, follow: false}, trendController: null, trendSequence: 0
+  trend: {span: 'all', from: null, to: null, follow: false}, trendController: null, trendSequence: 0,
+  // ประวัติย้อนหลังมีช่วงวัน/เวลาของตัวเอง range = 'today' | 'yesterday' | '7' | 'custom'
+  history: {range: 'today', controller: null, sequence: 0}
 };
 
 const lightbox = {
@@ -48,6 +50,73 @@ function query(){
   return new URLSearchParams({from: from + 'T00:00:00+07:00', to: addDays(to, 1) + 'T00:00:00+07:00', lane: $('#lane-filter').value});
 }
 
+const FULL_DAY = ['00:00', '23:59'];
+
+function historyQuery(){
+  const from = $('#history-from').value, to = $('#history-to').value;
+  if(!from || !to || to < from) throw new Error('ประวัติย้อนหลัง: กรุณาเลือกวันที่เริ่มต้นและสิ้นสุดให้ถูกต้อง');
+  if((new Date(to) - new Date(from)) / 86400000 > 365) throw new Error('ประวัติย้อนหลัง: เลือกช่วงวันที่ได้ไม่เกิน 366 วัน');
+  const timeFrom = $('#history-time-from').value, timeTo = $('#history-time-to').value;
+  if(!timeFrom || !timeTo) throw new Error('ประวัติย้อนหลัง: กรุณาเลือกเวลาเริ่มต้นและสิ้นสุด');
+  const params = new URLSearchParams({from: from + 'T00:00:00+07:00', to: addDays(to, 1) + 'T00:00:00+07:00',
+    lane: $('#lane-filter').value, page: state.page, page_size: state.pageSize});
+  if($('#level-filter').value) params.set('level', $('#level-filter').value);
+  if(timeFrom !== FULL_DAY[0] || timeTo !== FULL_DAY[1]){
+    params.set('time_from', timeFrom);
+    params.set('time_to', timeTo);
+  }
+  return params;
+}
+
+function historyFilterLabel(){
+  const from = $('#history-from').value, to = $('#history-to').value;
+  const day = value => new Intl.DateTimeFormat('th-TH', {timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: 'numeric'}).format(new Date(value + 'T12:00:00+07:00'));
+  const days = from === to ? day(from) : `${day(from)} – ${day(to)}`;
+  const timeFrom = $('#history-time-from').value, timeTo = $('#history-time-to').value;
+  if(timeFrom === FULL_DAY[0] && timeTo === FULL_DAY[1]) return `${days} · ทั้งวัน`;
+  const overnight = timeFrom > timeTo ? ' (ข้ามเที่ยงคืน)' : '';
+  return `${days} · เฉพาะเวลา ${timeFrom}–${timeTo} น.${from === to ? '' : ' ของทุกวัน'}${overnight}`;
+}
+
+function markHistoryPresets(){
+  const from = $('#history-from').value, to = $('#history-to').value, today = bangkokDay();
+  const range = from === today && to === today ? 'today'
+    : (from === addDays(today, -1) && to === from ? 'yesterday' : (from === addDays(today, -6) && to === today ? '7' : 'custom'));
+  state.history.range = range;
+  $$('[data-history-range]').forEach(button => button.classList.toggle('selected', button.dataset.historyRange === range));
+  const time = $('#history-time-from').value + '-' + $('#history-time-to').value;
+  $$('[data-history-time]').forEach(button => button.classList.toggle('selected', button.dataset.historyTime === time));
+}
+
+function setHistoryDays(range){
+  const today = bangkokDay();
+  const from = range === 'today' ? today : (range === 'yesterday' ? addDays(today, -1) : addDays(today, 1 - Number(range)));
+  $('#history-from').value = from;
+  $('#history-to').value = range === 'yesterday' ? from : today;
+}
+
+async function loadHistory(){
+  let params;
+  try { params = historyQuery(); } catch(error) { showError(error); return; }
+  markHistoryPresets();
+  $('#history-filter-label').textContent = 'กำลังโหลด · ' + historyFilterLabel();
+  const sequence = ++state.history.sequence;
+  state.history.controller?.abort();
+  state.history.controller = new AbortController();
+  try {
+    const history = await getJSON('/api/history?' + params, state.history.controller.signal);
+    if(sequence !== state.history.sequence) return;
+    renderHistory(history);
+    $('#new-data').hidden = true;
+    $('#history-filter-label').textContent = historyFilterLabel();
+  } catch(error){
+    if(error.name !== 'AbortError'){
+      showError(error);
+      $('#history-filter-label').textContent = 'โหลดประวัติไม่สำเร็จ · ' + historyFilterLabel();
+    }
+  }
+}
+
 async function getJSON(url, signal){
   const response = await fetch(url, {signal, cache: 'no-store'});
   if(!response.ok){
@@ -73,9 +142,16 @@ function chooseRange(range){
   const today = bangkokDay();
   $('#date-to').value = today;
   $('#date-from').value = addDays(today, range === 'today' ? 0 : 1 - Number(range));
-  state.page = 1;
+  syncHistoryDays();
   state.trend.span = 'all';
   refresh('filter');
+}
+
+// เปลี่ยนช่วงวันด้านบน -> ประวัติตามไปด้วย (ช่วงเวลาของวันคงเดิม) แล้วปรับเองต่อในแผงประวัติได้
+function syncHistoryDays(){
+  $('#history-from').value = $('#date-from').value;
+  $('#history-to').value = $('#date-to').value;
+  state.page = 1;
 }
 
 function scheduleRefresh(){
@@ -91,16 +167,11 @@ async function refresh(reason = 'manual'){
   state.controller = new AbortController();
   const signal = state.controller.signal;
   const updateHistory = reason !== 'live' || (state.page === 1 && !$('#detail-dialog').open);
-  const historyParams = new URLSearchParams(params);
-  historyParams.set('page', state.page);
-  historyParams.set('page_size', state.pageSize);
-  if($('#level-filter').value) historyParams.set('level', $('#level-filter').value);
+  if(updateHistory) loadHistory();
+  else if($('#history-to').value >= bangkokDay()) $('#new-data').hidden = false;
   $('#sample-count').textContent = 'กำลังโหลด…';
   try {
-    const [data, history] = await Promise.all([
-      getJSON('/api/dashboard?' + params, signal),
-      updateHistory ? getJSON('/api/history?' + historyParams, signal) : Promise.resolve(null)
-    ]);
+    const data = await getJSON('/api/dashboard?' + params, signal);
     if(sequence !== state.sequence) return;
     state.data = data;
     state.revision = data.revision;
@@ -109,12 +180,6 @@ async function refresh(reason = 'manual'){
     renderSummary(data);
     loadTrend();
     renderHeatmap();
-    if(history){
-      renderHistory(history);
-      $('#new-data').hidden = true;
-    } else {
-      $('#new-data').hidden = false;
-    }
     $('#period-label').textContent = $('#date-from').value === $('#date-to').value
       ? dateTime($('#date-from').value + 'T00:00:00+07:00').split(' เวลา')[0].replace(/00:00.*$/, '')
       : $('#date-from').value + ' → ' + $('#date-to').value;
@@ -964,18 +1029,36 @@ function setupEvents(){
   $$('[data-range]').forEach(button => button.addEventListener('click', () => chooseRange(button.dataset.range)));
   $('#apply-dates').addEventListener('click', () => {
     state.range = 'custom';
-    state.page = 1;
+    syncHistoryDays();
     state.trend.span = 'all';
     $$('[data-range]').forEach(button => button.classList.toggle('selected', button.dataset.range === 'custom'));
     refresh('filter');
   });
 
-  for(const selector of ['#lane-filter', '#level-filter']){
-    $(selector).addEventListener('change', () => {
-      state.page = 1;
-      refresh('filter');
-    });
-  }
+  $('#lane-filter').addEventListener('change', () => {
+    state.page = 1;
+    refresh('filter');
+  });
+  $('#level-filter').addEventListener('change', () => {
+    state.page = 1;
+    loadHistory();
+  });
+
+  $$('[data-history-range]').forEach(button => button.addEventListener('click', () => {
+    setHistoryDays(button.dataset.historyRange);
+    state.page = 1;
+    loadHistory();
+  }));
+  $$('[data-history-time]').forEach(button => button.addEventListener('click', () => {
+    [$('#history-time-from').value, $('#history-time-to').value] = button.dataset.historyTime.split('-');
+    state.page = 1;
+    loadHistory();
+  }));
+  $('#history-filter').addEventListener('submit', event => {
+    event.preventDefault();
+    state.page = 1;
+    loadHistory();
+  });
 
   $$('[data-heat-mode]').forEach(button => button.addEventListener('click', () => {
     state.heatMode = button.dataset.heatMode;
@@ -1064,9 +1147,9 @@ function setupEvents(){
   }));
 
   $('#retry').addEventListener('click', () => state.config ? refresh() : initialize());
-  $('#prev-page').addEventListener('click', () => { if(state.page > 1){ state.page--; refresh(); } });
-  $('#next-page').addEventListener('click', () => { state.page++; refresh(); });
-  $('#new-data').addEventListener('click', () => { state.page = 1; refresh(); });
+  $('#prev-page').addEventListener('click', () => { if(state.page > 1){ state.page--; loadHistory(); } });
+  $('#next-page').addEventListener('click', () => { state.page++; loadHistory(); });
+  $('#new-data').addEventListener('click', () => { state.page = 1; loadHistory(); });
 
   $('#history-body').addEventListener('click', event => {
     const row = event.target.closest('[data-frame]');
@@ -1151,6 +1234,8 @@ async function start(){
   const today = bangkokDay();
   $('#date-from').value = today;
   $('#date-to').value = today;
+  $('#history-from').value = today;
+  $('#history-to').value = today;
   setupEvents();
   let lastDay = today;
   const clock = () => {
@@ -1163,7 +1248,10 @@ async function start(){
     const day = bangkokDay();
     if(day !== lastDay){
       lastDay = day;
+      // ประวัติที่ใช้ปุ่มลัด (วันนี้/เมื่อวาน/7 วัน) เลื่อนตามวันใหม่ด้วย
+      const historyRange = state.history.range;
       if(state.config && state.range !== 'custom') chooseRange(state.range);
+      if(state.config && historyRange !== 'custom'){ setHistoryDays(historyRange); state.page = 1; loadHistory(); }
     }
   }, 30000);
   await initialize();

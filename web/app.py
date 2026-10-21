@@ -22,6 +22,7 @@ from result_schema import FIELDS
 from web import db, queries
 
 STATIC = Path(__file__).parent / 'static'
+TIME_OF_DAY = r'^([01]\d|2[0-3]):[0-5]\d$'
 cache = OrderedDict()
 cache_lock = threading.RLock()
 
@@ -130,8 +131,10 @@ def trend(from_value: str | None = Query(None, alias='from'), to: str | None = N
 def history(from_value: str | None = Query(None, alias='from'), to: str | None = None,
             lane: Literal['all', 'left', 'right'] = 'all',
             level: Literal['clear', 'moderate', 'congested'] | None = None,
-            page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)):
-    return queries.history(*range_or_422(from_value, to), lane, level, page, page_size)
+            page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100),
+            time_from: str | None = Query(None, pattern=TIME_OF_DAY),
+            time_to: str | None = Query(None, pattern=TIME_OF_DAY)):
+    return queries.history(*range_or_422(from_value, to), lane, level, page, page_size, time_from, time_to)
 
 
 @app.get('/api/frames/{frame_id}')

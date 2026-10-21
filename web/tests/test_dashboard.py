@@ -155,6 +155,20 @@ class DashboardTests(unittest.TestCase):
         self.assertIsNone(first['items'][0]['images']['raw'])
         self.assertEqual(self.client.get('/api/frames/1/image').status_code,404)
 
+    def test_history_time_of_day_window(self):
+        for stamp,name in [('2026-10-21 06:30:00','063000'),('2026-10-21 12:00:00','120000'),
+                           ('2026-10-21 18:59:30','185930'),('2026-10-21 23:30:00','233000')]:
+            db.upsert_frame(sample_rows(stamp,name))
+        def times(**window):
+            items=self.client.get('/api/history',params={**self.range,'lane':'left',**window}).json()['items']
+            return [item['timestamp'][11:16] for item in items]
+        self.assertEqual(times(),['23:30','18:59','12:00','06:30'])
+        self.assertEqual(times(time_from='06:00',time_to='12:00'),['12:00','06:30'])
+        self.assertEqual(times(time_from='18:00',time_to='18:59'),['18:59'])   # รวมทั้งนาทีปลาย
+        self.assertEqual(times(time_from='22:00',time_to='07:00'),['23:30','06:30'])   # ข้ามเที่ยงคืน
+        for bad in ['24:00','7:00','12:60','noon']:
+            self.assertEqual(self.client.get('/api/history',params={**self.range,'time_from':bad}).status_code,422)
+
     def test_input_validation(self):
         for params in [{'from':'oops'},{**self.range,'lane':'hack'},{**self.range,'page_size':999},
                        {'from':'2026-10-22','to':'2026-10-21'}]:

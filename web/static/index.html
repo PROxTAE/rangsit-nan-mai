@@ -7,9 +7,9 @@
   <title>RS_TRAFFIC_ — Rangsit Traffic Observatory</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%239253f5' d='M11 0h10v11h11v10H21v11H11V21H0V11h11z'/%3E%3C/svg%3E">
   <link rel="preload" href="/static/vendor/fonts/NotoSansThai-Variable.ttf" as="font" type="font/ttf" crossorigin>
-  <link rel="stylesheet" href="/static/styles.css?v=trend2">
+  <link rel="stylesheet" href="/static/styles.css?v=history1">
   <script defer src="/static/vendor/chart.umd.min.js"></script>
-  <script defer src="/static/app.js?v=trend2"></script>
+  <script defer src="/static/app.js?v=history1"></script>
 </head>
 <body>
   <header class="topbar">
@@ -90,7 +90,14 @@
         <p class="heat-help">เทียบตามช่วงวันที่เลือก · สีเข้ม = หนาแน่นมาก · ลายเฉียง = ยังไม่มีข้อมูล</p>
       </section>
     </div>
-    <section class="panel history-panel" id="history"><div class="panel-title"><h2><span>/05</span> ประวัติย้อนหลัง</h2><div class="history-controls"><label>สถานะ <select id="level-filter"><option value="">ทั้งหมด</option><option value="clear">โล่ง</option><option value="moderate">ปานกลาง</option><option value="congested">ติด</option></select></label><span class="mono muted">คลิกแถวเพื่อดูรายละเอียด ↗</span></div></div><button id="new-data" class="new-data" hidden>มีข้อมูลใหม่ — แสดงรายการล่าสุด ↻</button><div class="table-scroll"><table><thead><tr><th>วัน / เวลาเก็บภาพ</th><th>ฝั่งถนน</th><th>ความหนาแน่น</th><th>สถานะ</th><th>ภาพ</th><th aria-label="รายละเอียด"></th></tr></thead><tbody id="history-body"><tr><td colspan="6" class="empty-cell">กำลังโหลดประวัติ…</td></tr></tbody></table></div><div class="table-footer"><span id="history-count">—</span><div class="pagination"><button id="prev-page" aria-label="หน้าก่อน">←</button><span id="page-label" class="mono">01 / 01</span><button id="next-page" aria-label="หน้าถัดไป">→</button></div></div></section>
+    <section class="panel history-panel" id="history"><div class="panel-title"><h2><span>/05</span> ประวัติย้อนหลัง</h2><div class="history-controls"><label>สถานะ <select id="level-filter"><option value="">ทั้งหมด</option><option value="clear">โล่ง</option><option value="moderate">ปานกลาง</option><option value="congested">ติด</option></select></label><span class="mono muted">คลิกแถวเพื่อดูรายละเอียด ↗</span></div></div>
+      <form id="history-filter" class="history-filter" novalidate>
+        <div class="history-filter-group"><span class="mono purple">DATE /</span><div class="segmented" role="group" aria-label="ช่วงวันที่ของประวัติ"><button type="button" data-history-range="today" class="selected">วันนี้</button><button type="button" data-history-range="yesterday">เมื่อวาน</button><button type="button" data-history-range="7">7 วัน</button></div><label>ตั้งแต่ <input id="history-from" type="date" aria-label="ประวัติ วันที่เริ่มต้น"></label><label>ถึง <input id="history-to" type="date" aria-label="ประวัติ วันที่สิ้นสุด"></label></div>
+        <div class="history-filter-group"><span class="mono purple">TIME /</span><div class="segmented" role="group" aria-label="ช่วงเวลาของแต่ละวัน"><button type="button" data-history-time="00:00-23:59" class="selected">ทั้งวัน</button><button type="button" data-history-time="06:00-09:00">เช้า 06–09</button><button type="button" data-history-time="16:00-19:00">เย็น 16–19</button><button type="button" data-history-time="19:00-23:59">ค่ำ 19–24</button></div><label>ตั้งแต่ <input id="history-time-from" type="time" value="00:00" aria-label="ประวัติ เวลาเริ่มต้น"></label><label>ถึง <input id="history-time-to" type="time" value="23:59" aria-label="ประวัติ เวลาสิ้นสุด"></label></div>
+        <button type="submit" class="button compact black">ดูช่วงนี้ ↗</button>
+        <small id="history-filter-label" class="history-filter-label muted"></small>
+      </form>
+      <button id="new-data" class="new-data" hidden>มีข้อมูลใหม่ — แสดงรายการล่าสุด ↻</button><div class="table-scroll"><table><thead><tr><th>วัน / เวลาเก็บภาพ</th><th>ฝั่งถนน</th><th>ความหนาแน่น</th><th>สถานะ</th><th>ภาพ</th><th aria-label="รายละเอียด"></th></tr></thead><tbody id="history-body"><tr><td colspan="6" class="empty-cell">กำลังโหลดประวัติ…</td></tr></tbody></table></div><div class="table-footer"><span id="history-count">—</span><div class="pagination"><button id="prev-page" aria-label="หน้าก่อน">←</button><span id="page-label" class="mono">01 / 01</span><button id="next-page" aria-label="หน้าถัดไป">→</button></div></div></section>
     <footer><span><i id="footer-dot" class="dot"></i><b id="footer-status">CONNECTING</b></span><span class="footer-center">RANGSIT_TRAFFIC / IMAGE PROCESSING</span><span id="footer-interval">CAM_01 / INTERVAL: 300s</span><a href="/docs" target="_blank" rel="noopener">API ↗</a></footer>
   </main>
   <dialog id="detail-dialog"><div class="dialog-title"><div><span class="mono purple">FRAME / INSPECTOR</span><h2 id="detail-title">รายละเอียดการวิเคราะห์</h2></div><button id="close-dialog" aria-label="ปิดรายละเอียด">✕</button></div><div id="detail-content"></div></dialog>

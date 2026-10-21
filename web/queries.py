@@ -98,8 +98,21 @@ def dashboard(start, end, lane):
                 range={'from': db.iso_time(start), 'to': db.iso_time(end)}, lane=lane)
 
 
-def history(start, end, lane, level, page, page_size):
+def minutes_of_day(value):
+    """'HH:MM' -> นาทีนับจากเที่ยงคืน"""
+    hour, minute = value.split(':')
+    return int(hour)*60 + int(minute)
+
+
+def history(start, end, lane, level, page, page_size, time_from=None, time_to=None):
+    """time_from/time_to ('HH:MM' รวมนาทีปลาย) กรองช่วงเวลาเดียวกันของทุกวันในช่วงวันที่
+    ถ้า time_from > time_to คือช่วงข้ามเที่ยงคืน เช่น 22:00–02:00"""
     clause, args = where(start, end, lane, level)
+    if time_from or time_to:
+        low, high = minutes_of_day(time_from or '00:00'), minutes_of_day(time_to or '23:59')
+        minute = '((captured_at+25200)%86400)/60'
+        clause += f' AND ({minute}>=? {"AND" if low <= high else "OR"} {minute}<=?)'
+        args += [low, high]
     with db.connect() as conn:
         conn.execute('BEGIN')
         total = conn.execute(f'SELECT COUNT(*) FROM results WHERE {clause}', args).fetchone()[0]
