@@ -7,9 +7,9 @@
   <title>RS_TRAFFIC_ — Rangsit Traffic Observatory</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%239253f5' d='M11 0h10v11h11v10H21v11H11V21H0V11h11z'/%3E%3C/svg%3E">
   <link rel="preload" href="/static/vendor/fonts/NotoSansThai-Variable.ttf" as="font" type="font/ttf" crossorigin>
-  <link rel="stylesheet" href="/static/styles.css?v=trend1">
+  <link rel="stylesheet" href="/static/styles.css?v=trend2">
   <script defer src="/static/vendor/chart.umd.min.js"></script>
-  <script defer src="/static/app.js?v=trend1"></script>
+  <script defer src="/static/app.js?v=trend2"></script>
 </head>
 <body>
   <header class="topbar">
@@ -45,7 +45,7 @@
           <span class="image-corner tl"></span><span class="image-corner br"></span>
         </div>
         <div class="camera-toolbar">
-          <div class="segmented" role="group" aria-label="ชนิดภาพ"><button data-image="raw" class="selected">ภาพต้นฉบับ</button><button data-image="overlay">ภาพวิเคราะห์</button></div>
+          <div class="segmented" role="group" aria-label="ชนิดภาพ"><button data-image="raw">ภาพต้นฉบับ</button><button data-image="overlay" class="selected">ภาพวิเคราะห์</button></div>
           <div class="camera-toolbar-right">
             <button id="camera-zoom-btn" class="button compact camera-zoom-btn" title="ขยายเต็มจอ (F)"><i class="zoom-trigger-icon">⛶</i> เต็มจอ</button>
             <span id="snapshot-interval" class="mono muted">SNAPSHOT / 300 SEC</span>
@@ -107,8 +107,8 @@
         </div>
         <div class="lightbox-toolbar">
           <div class="segmented" role="group" aria-label="ชนิดภาพเต็มจอ">
-            <button data-lightbox-image="raw" class="selected">ภาพต้นฉบับ</button>
-            <button data-lightbox-image="overlay">ภาพวิเคราะห์</button>
+            <button data-lightbox-image="raw">ภาพต้นฉบับ</button>
+            <button data-lightbox-image="overlay" class="selected">ภาพวิเคราะห์</button>
           </div>
           <div class="lightbox-zoom-controls">
             <button id="lightbox-zoom-out" class="button compact" title="ซูมออก (−)" aria-label="ซูมออก">− ซูมออก</button>

@@ -3,7 +3,7 @@ const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const state = {
   config: null, data: null, revision: -1, wantedRevision: -1, page: 1, pageSize: 25,
-  total: 0, image: 'raw', sequence: 0, controller: null, chart: null, latest: null, refreshTimer: null,
+  total: 0, image: 'overlay', sequence: 0, controller: null, chart: null, latest: null, refreshTimer: null,
   range: 'today', connection: false, health: null, heatMode: 'both', heatSelection: null,
   heatHover: null, heatPinned: false, heatFocusLane: 'left', heatCells: new Map(), heatPairs: new Map(),
   // กราฟแนวโน้ม: span = 'all' (ตามช่วงที่เลือกด้านบน) | วินาทีของปุ่ม 1/3/6/12 ชม. | 'custom' | 'window' (ลากซูม/เลื่อน)
@@ -20,7 +20,7 @@ const lightbox = {
   isPanning: false,
   startX: 0,
   startY: 0,
-  sourceImage: 'raw',
+  sourceImage: 'overlay',
   currentFrame: null
 };
 
