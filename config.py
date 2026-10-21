@@ -78,13 +78,20 @@ CAMERA_SHIFT_TOL = 3                  # ขยับเกินกี่ px ถ
 # ---------- Preprocess ----------
 MEDIAN_KSIZE = 5
 NIGHT_BRIGHTNESS = 70       # ค่าเฉลี่ยความสว่างทั้งภาพต่ำกว่านี้ = กลางคืน
+# ค่าเฉลี่ยอย่างเดียวไม่พอ: กล้องนี้มีไฟถนน+ป้ายไฟ กลางคืนเฉลี่ยยัง ~80 จึงดูสัดส่วนพิกเซลมืดด้วย
+NIGHT_DARK_LEVEL = 40       # พิกเซลที่ gray < 40 นับว่า "มืด"
+NIGHT_DARK_FRAC = 0.20      # พิกเซลมืดเกิน 20% ของภาพ = กลางคืน (กลางวัน ~5%, กลางคืน ~35%)
 
 # ---------- Segmentation ----------
 # ภาพถนนว่างกลางวันใน data/background/
 #   "bg_day.png"        = จัดแนวจาก image_reference/when_clear_road.png (python segment.py --reference)
 #   "bg_day_median.png" = temporal median จากภาพที่เก็บมา (python segment.py --median)
-# กลางคืนใช้ "bg_night.png" อัตโนมัติถ้ามี
+# กลางคืนใช้ "bg_night.png" อัตโนมัติถ้ามี (python segment.py --median แยกภาพกลางคืนให้เอง)
+# ถ้าไม่มี จะเทียบภาพกลางคืนกับพื้นหลังกลางวัน ถนนสีส้มจากไฟถนนจะถูกนับเป็นรถเกือบทั้งเลน
 BG_DAY_FILE = "bg_day.png"
+# กลางคืนไฟหน้ารถทำให้ผิวถนน "สว่างขึ้น" เท่านั้น และช่วงหัวค่ำฝั่งขาเข้าติดยาวเป็นชั่วโมง
+# median (50) จึงติดแสงไฟรถไปด้วย ใช้ percentile ต่ำกว่าเพื่อให้ได้ผิวถนนที่มีแค่ไฟถนน
+NIGHT_BG_PERCENTILE = 25
 MIN_DIFF_THRESHOLD = 22     # ขั้นต่ำของ threshold กัน Otsu เลือกค่าต่ำเกินตอนถนนว่าง
 MAX_DIFF_THRESHOLD = 60
 SAT_WEIGHT = 0.8            # น้ำหนักของผลต่างช่อง S (HSV) ที่รวมกับผลต่าง grayscale

@@ -14,21 +14,22 @@ import numpy as np
 import config
 import features
 import geometry
-from preprocess import brightness, load_frame, match_photometry, preprocess, save_image
+from preprocess import is_night, load_frame, match_photometry, preprocess, save_image
 
 
 # ---------------------------------------------------------- background
-def temporal_median(paths, max_images=60):
+def temporal_median(paths, max_images=60, percentile=50):
     """ภาพถนนว่างจาก median ของหลายภาพทีละพิกเซลตามแกนเวลา (median filter แบบเวลา W3)
 
     รถไม่ได้อยู่ที่ตำแหน่งเดิมนาน ค่ากลางของแต่ละพิกเซลจึงเป็นสีถนน
+    percentile < 50 = เลือกค่าที่มืดกว่าค่ากลาง ใช้กับกลางคืน (ดู NIGHT_BG_PERCENTILE)
     """
     paths = list(paths)
     if len(paths) > max_images:
         idx = np.linspace(0, len(paths) - 1, max_images).astype(int)
         paths = [paths[i] for i in idx]
     stack = np.stack([load_frame(p) for p in paths], axis=0)
-    return np.median(stack, axis=0).astype(np.uint8)
+    return np.percentile(stack, percentile, axis=0).astype(np.uint8)
 
 
 def load_background(night=False):
@@ -172,13 +173,14 @@ def main():
 
     if args.median is not None:
         frames = _all_frames(args.median or None)
-        day = [p for p in frames if brightness(load_frame(p)) >= config.NIGHT_BRIGHTNESS]
+        day = [p for p in frames if not is_night(load_frame(p))]
         night = [p for p in frames if p not in day]
-        for name, group in (("bg_day_median.png", day), ("bg_night.png", night)):
+        for name, group, q in (("bg_day_median.png", day, 50),
+                               ("bg_night.png", night, config.NIGHT_BG_PERCENTILE)):
             if len(group) >= 10:
                 out = config.BG_DIR / name
-                save_image(out, temporal_median(group))
-                print(f"{name}: median จาก {len(group)} ภาพ -> {out}")
+                save_image(out, temporal_median(group, percentile=q))
+                print(f"{name}: percentile {q} จาก {len(group)} ภาพ -> {out}")
             else:
                 print(f"{name}: มีภาพแค่ {len(group)} ภาพ (ต้องการ >= 10) ข้าม")
 

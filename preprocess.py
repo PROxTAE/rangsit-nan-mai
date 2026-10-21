@@ -65,8 +65,18 @@ def contrast(img):
     return float(gray.std())
 
 
+def dark_fraction(img):
+    """สัดส่วนพิกเซลที่มืดกว่า NIGHT_DARK_LEVEL (W1 histogram)
+
+    กลางคืนไฟถนน/ป้ายไฟทำให้ค่าเฉลี่ยยังสูง (~80) แต่ท้องฟ้าและอาคารมืดสนิท
+    กลางวันมีพิกเซลมืดแค่ ~5% (เงาใต้หลังคา) กลางคืนกระโดดเป็น ~35%
+    """
+    gray = img if img.ndim == 2 else to_gray(img)
+    return float(np.count_nonzero(gray < config.NIGHT_DARK_LEVEL)) / gray.size
+
+
 def is_night(img):
-    return brightness(img) < config.NIGHT_BRIGHTNESS
+    return brightness(img) < config.NIGHT_BRIGHTNESS or dark_fraction(img) > config.NIGHT_DARK_FRAC
 
 
 def preprocess(img):

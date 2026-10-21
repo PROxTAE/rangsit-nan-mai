@@ -15,6 +15,7 @@ import requests
 import config
 from collector import collect_once, next_wait
 from pipeline import Pipeline, draw_overlay
+from preprocess import is_night, load_frame
 from web import db
 from web.media import atomic_image, relative
 
@@ -68,7 +69,8 @@ def process_path(pipe, path):
     pair = path.with_name(path.stem+'_b.jpg')
     settings = {key: getattr(config, key) for key in ['OCC_MODERATE', 'OCC_CONGESTED', 'MOTION_STOPPED',
                 'MOTION_FLOWING', 'BG_DAY_FILE', 'CAMERA_SHIFT_TOL', 'LANDMARK_MIN_SCORE',
-                'RELIGHT_BAND', 'RELIGHT_MAX', 'INTERVAL_SEC', 'CAPTURE_PAIR', 'MOTION_MAX_GAP_SEC']}
+                'RELIGHT_BAND', 'RELIGHT_MAX', 'INTERVAL_SEC', 'CAPTURE_PAIR', 'MOTION_MAX_GAP_SEC',
+                'NIGHT_BRIGHTNESS', 'NIGHT_DARK_FRAC', 'NIGHT_BG_PERCENTILE']}
     roi_file = config.MASK_DIR / 'rois.json'
     settings['roi_sha256'] = hashlib.sha256(roi_file.read_bytes()).hexdigest() if roi_file.exists() else None
     result = db.upsert_frame(rows, dict(raw_path=relative(path), pair_path=relative(pair) if pair.exists() else None,
@@ -87,6 +89,15 @@ def pending_frames():
     return [p for p in sorted(config.RAW_DIR.glob('*/*.jpg')) if not p.stem.endswith('_b')
             and relative(p) not in done and (not config.CAPTURE_PAIR or p.with_name(p.stem+'_b.jpg').exists()
                 or time.time()-p.stat().st_mtime > config.PAIR_TIMEOUT_SEC+30)]
+
+
+def redo_night(pipe):
+    """ประมวลผลภาพกลางคืนที่บันทึกไปแล้วใหม่ (หลังสร้าง/แก้ bg_night.png หรือเกณฑ์กลางคืน)"""
+    frames = [p for p in sorted(config.RAW_DIR.glob('*/*.jpg'))
+              if not p.stem.endswith('_b') and is_night(load_frame(p))]
+    log.info('Reprocessing %d night frames', len(frames))
+    for path in frames:
+        process_path(pipe, path)
 
 
 def recover_pending(pipe, retry_after=None):
@@ -114,6 +125,7 @@ def main():
     parser.add_argument('--count', type=int, default=0, help='0 means run continuously')
     parser.add_argument('--pair', action=argparse.BooleanOptionalAction, default=config.CAPTURE_PAIR)
     parser.add_argument('--recover-only', action='store_true', help='Analyze existing pending images, then exit')
+    parser.add_argument('--redo-night', action='store_true', help='Re-analyze every stored night frame, then exit')
     parser.add_argument('--watch-only', action='store_true', help='Analyze files from an already-running collector; do not fetch images')
     args = parser.parse_args()
     if args.interval < 1 or args.count < 0:
@@ -129,7 +141,9 @@ def main():
             pipe = Pipeline()
             pipe.background(False)  # fail clearly before collecting if setup is incomplete
             recover_pending(pipe)
-            if args.recover_only:
+            if args.redo_night:
+                redo_night(pipe)
+            if args.recover_only or args.redo_night:
                 return
             if args.watch_only:
                 retry_after = {}

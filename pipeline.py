@@ -12,7 +12,7 @@ import config
 import features
 import geometry
 import segment
-from preprocess import brightness, contrast, load_frame
+from preprocess import brightness, contrast, is_night, load_frame
 
 
 def occupancy(binary, mask):
@@ -102,7 +102,7 @@ class Pipeline:
     def process_frame(self, path, with_kmeans=True):
         img = load_frame(path)
         bright = brightness(img)
-        night = bright < config.NIGHT_BRIGHTNESS
+        night = is_night(img)
         bg = self.background(night)
 
         # W8: ตรวจกล้องขยับ แล้วเลื่อนภาพกลับ (W7) ให้ตรงกับ ROI/พื้นหลัง
