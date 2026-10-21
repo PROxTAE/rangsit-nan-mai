@@ -46,5 +46,7 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Raw downloaded CCTV frames
+# Raw downloaded CCTV frames & generated live worker images
 data/raw/
+results/overlays/
+results/thumbnails/
