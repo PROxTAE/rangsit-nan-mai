@@ -82,8 +82,9 @@ class Pipeline:
         if max(abs(dx), abs(dy)) > config.CAMERA_SHIFT_TOL and score >= config.LANDMARK_MIN_SCORE:
             img = geometry.shift_image(img, -dx, -dy)
 
-        binary, dbg = segment.segment(img, bg, self.road, self.static, return_debug=True)
-        kbin = segment.segment_kmeans(img, bg, self.road, static=self.static) if with_kmeans else None
+        binary, dbg = segment.segment(img, bg, self.road, self.static, return_debug=True, lanes=self.masks)
+        kbin = (segment.segment_kmeans(img, bg, self.road, static=self.static, lanes=self.masks)
+                if with_kmeans else None)
 
         # ภาพคู่ห่าง ~60 วินาที (ถ้ามี) สำหรับวัดการเคลื่อนไหว
         pair = path.with_name(path.stem + "_b" + path.suffix)

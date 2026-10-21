@@ -67,7 +67,8 @@ def process_path(pipe, path):
     atomic_image(thumb, cv2.resize(image, (240, round(image.shape[0]*240/image.shape[1]))))
     pair = path.with_name(path.stem+'_b.jpg')
     settings = {key: getattr(config, key) for key in ['OCC_MODERATE', 'OCC_CONGESTED', 'MOTION_STOPPED',
-                'MOTION_FLOWING', 'BG_DAY_FILE', 'CAMERA_SHIFT_TOL', 'LANDMARK_MIN_SCORE']}
+                'MOTION_FLOWING', 'BG_DAY_FILE', 'CAMERA_SHIFT_TOL', 'LANDMARK_MIN_SCORE',
+                'RELIGHT_BAND', 'RELIGHT_MAX']}
     roi_file = config.MASK_DIR / 'rois.json'
     settings['roi_sha256'] = hashlib.sha256(roi_file.read_bytes()).hexdigest() if roi_file.exists() else None
     result = db.upsert_frame(rows, dict(raw_path=relative(path), pair_path=relative(pair) if pair.exists() else None,

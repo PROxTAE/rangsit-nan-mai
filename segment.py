@@ -43,18 +43,52 @@ def load_background(night=False):
 
 
 # -------------------------------------------------------- diff features
-def difference_maps(img, bg, road, static):
+def road_relight(bg_ch, frame_ch, lanes, band=None, limit=None):
+    """ปรับภาพพื้นหลังให้ความสว่างของผิวถนนตรงกับภาพปัจจุบัน แยกทีละเลน ทีละแถบแนวนอน
+
+    แดดหรือเงาเมฆทำให้ถนนสว่าง/มืดลงทั้งแถบ ผลต่างเกิน threshold จนถนนทั้งแถบกลายเป็น "รถ"
+    ในแต่ละแถบ รถกินพื้นที่ไม่ถึงครึ่ง median ของ (ภาพ - พื้นหลัง) จึงเป็นค่าที่แสงทำให้ผิวถนนเปลี่ยนไป
+    ค่าชดเชยถูกบีบไว้ที่ ±limit (รถติดเต็มแถบ median จะเป็นสีรถ ไม่ใช่ถนน)
+    แล้ว interpolate ทีละแถว ภาพพื้นหลังจะได้ไม่มีรอยต่อระหว่างแถบที่กลายเป็นขอบปลอม
+    """
+    band = band or config.RELIGHT_BAND
+    limit = config.RELIGHT_MAX if limit is None else limit
+    signed = frame_ch.astype(np.float32) - bg_ch.astype(np.float32)
+    corr = np.zeros(bg_ch.shape, np.float32)
+    for m in lanes.values():
+        rows = np.nonzero(m.any(axis=1))[0]
+        if not len(rows):
+            continue
+        centers, offsets = [], []
+        for y0 in range(rows.min(), rows.max() + 1, band):
+            win = slice(max(y0 - band, 0), y0 + 2 * band)     # หน้าต่าง 3 แถบ ให้ค่าเรียบขึ้น
+            road_px = signed[win][m[win] > 0]
+            if road_px.size >= 50:
+                centers.append(y0 + band / 2)
+                offsets.append(np.clip(np.median(road_px), -limit, limit))
+        if not centers:
+            continue
+        per_row = np.interp(np.arange(bg_ch.shape[0]), centers, offsets)
+        lane_px = m > 0
+        corr[lane_px] = np.broadcast_to(per_row[:, None], corr.shape)[lane_px]
+    return np.clip(bg_ch.astype(np.float32) + corr, 0, 255).astype(np.uint8)
+
+
+def difference_maps(img, bg, road, static, lanes=None):
     """ผลต่างระหว่างภาพปัจจุบันกับภาพถนนว่าง หลังปรับแสงของพื้นหลังให้ตรงกันแล้ว
 
+    ปรับแสง 2 ชั้น: match_photometry จากอาคาร (แสงทั้งภาพ/การตั้งค่ากล้อง)
+    แล้ว road_relight จากผิวถนนเอง (แสงเฉพาะบนถนน)
     คืน dict: gray (absdiff ความสว่าง), sat (absdiff ช่อง S), edge (ขอบที่เพิ่มขึ้น), combined
     """
+    lanes = lanes if lanes is not None else geometry.lane_masks()
     f_gray, b_gray = preprocess(img), preprocess(bg)
-    b_gray = match_photometry(b_gray, f_gray, static)
+    b_gray = road_relight(match_photometry(b_gray, f_gray, static), f_gray, lanes)
     d_gray = cv2.absdiff(f_gray, b_gray)
 
     f_sat = cv2.medianBlur(features.saturation(img), config.MEDIAN_KSIZE)
     b_sat = cv2.medianBlur(features.saturation(bg), config.MEDIAN_KSIZE)
-    b_sat = match_photometry(b_sat, f_sat, static)
+    b_sat = road_relight(match_photometry(b_sat, f_sat, static), f_sat, lanes)
     d_sat = cv2.absdiff(f_sat, b_sat)
 
     combined = np.maximum(d_gray, (d_sat * config.SAT_WEIGHT).astype(np.uint8))
@@ -75,10 +109,10 @@ def otsu_threshold(diff, roi):
     return float(np.clip(t, config.MIN_DIFF_THRESHOLD, config.MAX_DIFF_THRESHOLD))
 
 
-def segment(img, bg, mask, static=None, return_debug=False):
+def segment(img, bg, mask, static=None, return_debug=False, lanes=None):
     """แยกรถด้วย absdiff + Otsu + ขอบเสริม + morphology"""
     static = static if static is not None else geometry.static_mask()
-    maps = difference_maps(img, bg, mask, static)
+    maps = difference_maps(img, bg, mask, static, lanes)
     t = otsu_threshold(maps["combined"], mask)
     binary = (maps["combined"] > t).astype(np.uint8) * 255
     # รถสีเทาใกล้ถนน: ความสว่างต่างไม่ถึง T แต่มีขอบตัวรถ -> เติมเฉพาะขอบใหม่ที่ผลต่างเกินครึ่งหนึ่งของ T
@@ -92,14 +126,14 @@ def segment(img, bg, mask, static=None, return_debug=False):
     return binary
 
 
-def segment_kmeans(img, bg, mask, k=2, static=None):
+def segment_kmeans(img, bg, mask, k=2, static=None, lanes=None):
     """ทางเลือก (W9): K-means บนเวกเตอร์ [diff gray, diff S, edge] ของพิกเซลใน ROI
 
     cluster ที่จุดศูนย์กลางมีผลต่างเกิน MIN_DIFF_THRESHOLD ถือเป็นรถ
     (ถ้าถนนว่างทั้งเลน ทุก cluster จะต่างจากพื้นหลังน้อย -> ไม่มีรถ)
     """
     static = static if static is not None else geometry.static_mask()
-    maps = difference_maps(img, bg, mask, static)
+    maps = difference_maps(img, bg, mask, static, lanes)
     ys, xs = np.nonzero(mask)
     X = np.stack([maps["gray"][ys, xs], maps["sat"][ys, xs] * config.SAT_WEIGHT,
                   maps["edge"][ys, xs] / 255.0 * 40], axis=1).astype(np.float32)

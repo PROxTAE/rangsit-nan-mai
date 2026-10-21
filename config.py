@@ -78,6 +78,9 @@ BG_DAY_FILE = "bg_day.png"
 MIN_DIFF_THRESHOLD = 22     # ขั้นต่ำของ threshold กัน Otsu เลือกค่าต่ำเกินตอนถนนว่าง
 MAX_DIFF_THRESHOLD = 60
 SAT_WEIGHT = 0.8            # น้ำหนักของผลต่างช่อง S (HSV) ที่รวมกับผลต่าง grayscale
+# ชดเชยแสงบนผิวถนน (แดด/เงาเมฆ/หมอกแดด) ที่ match_photometry จากอาคารชดเชยไม่ได้
+RELIGHT_BAND = 16           # ความสูงแถบแนวนอน (px) ที่ใช้หาค่าผลต่างของผิวถนน
+RELIGHT_MAX = 40            # ชดเชยได้ไม่เกิน ±40 กันรถติดจริงเต็มแถบแล้วถูกลบออกเป็น "ถนน"
 OPEN_KSIZE = 3
 CLOSE_KSIZE = 5
 
