@@ -50,3 +50,6 @@ Thumbs.db
 data/raw/
 results/overlays/
 results/thumbnails/
+
+# สำรองข้อมูลจาก VPS (ภาพ + DB หลาย GB)
+backup/
