@@ -60,6 +60,12 @@ class DashboardTests(unittest.TestCase):
                 elif original[key] is not None:
                     self.assertEqual(float(original[key]),float(exported[key]))
 
+    def test_link_preview_uses_absolute_urls(self):
+        html=self.client.get('/',headers={'host':'traffic.example'}).text
+        self.assertNotIn('{{ORIGIN}}',html)
+        self.assertIn('<meta property="og:image" content="http://traffic.example/static/og-image.jpg?v=1">',html)
+        self.assertEqual(self.client.get('/static/og-image.jpg').headers['content-type'],'image/jpeg')
+
     def test_empty_database(self):
         data=self.client.get('/api/dashboard',params=self.range).json()
         self.assertEqual(data['latest'],[])

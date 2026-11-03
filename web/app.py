@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 import config
@@ -88,8 +88,11 @@ def range_or_422(from_value, to_value):
 
 
 @app.get('/')
-def index():
-    return FileResponse(STATIC / 'index.html', headers={'Cache-Control': 'no-cache'})
+def index(request: Request):
+    # og:image / og:url ต้องเป็น URL เต็ม ใช้โดเมนที่ผู้ใช้เปิดเข้ามา (Caddy ส่ง X-Forwarded-Proto ให้ uvicorn)
+    origin = str(request.base_url).rstrip('/')
+    html = (STATIC / 'index.html').read_text(encoding='utf-8').replace('{{ORIGIN}}', origin)
+    return HTMLResponse(html, headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/api/config')
