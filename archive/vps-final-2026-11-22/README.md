@@ -6,6 +6,10 @@
 
 ปิด worker เมื่อ **2026-11-22 21:02 (เวลาไทย)** แล้วดึง DB สุดท้ายมาเก็บไว้ในโฟลเดอร์นี้ก่อนลบออกจาก VPS
 
+**สถานะ: ลบออกจาก VPS แล้ว (22 พ.ย. 2569)** — container/image/โฟลเดอร์ `/opt/rangsitnanmai`, บล็อกใน Caddyfile
+(สำรองไว้ที่ `/opt/caddy/Caddyfile.bak-before-rangsit-removal`) และ DNS `rangsitnanmai.tntstudio.tech`
+ส่วน network `rangsitnanmai-ingress` ยังอยู่เพราะ Caddy / qplay / rodmairod ใช้ร่วม
+
 ## ระยะเวลาที่เก็บ
 
 | รายการ | ค่า |
